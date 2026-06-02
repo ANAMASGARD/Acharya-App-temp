@@ -54,6 +54,16 @@ _Items below will move into dated commit sections once committed._
 
 - Finalized changelog entry for `49dd7e5`; cleared stale “In progress” section
 
+### `7fb770d` — docs: log memory maintenance commit in project memory
+
+- Documented `a3a2b68` in the changelog (this file)
+
+### `8e482eb` — docs: sync project memory changelog through latest commit
+
+- Changelog entries through `7fb770d`; maintenance commits above document this file itself
+
+_Update this file when you land the next feature commit (add a `### \`<hash>\` — …` section)._
+
 ---
 
 ## In progress (not yet committed)
