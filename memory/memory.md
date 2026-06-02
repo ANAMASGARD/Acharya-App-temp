@@ -58,11 +58,12 @@ _Items below will move into dated commit sections once committed._
 
 - Documented `a3a2b68` in the changelog (this file)
 
-### `8e482eb` — docs: sync project memory changelog through latest commit
+### Latest — docs: sync project memory changelog through latest commit
 
-- Changelog entries through `7fb770d`; maintenance commits above document this file itself
+- Hash: run `git log -1 --format=%h -- memory/memory.md` after pull
+- Changelog entries through `7fb770d`; commits above this line document maintenance of this file
 
-_Update this file when you land the next feature commit (add a `### \`<hash>\` — …` section)._
+_Update when you land the next feature: add `### \`<hash>\` — <subject>\` with bullet points, then clear **In progress**._
 
 ---
 
