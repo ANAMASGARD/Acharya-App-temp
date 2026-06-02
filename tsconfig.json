@@ -13,6 +13,10 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "nativewind-env.d.ts"
+    "nativewind-env.d.ts",
+    "assets.d.ts"
+  ],
+  "exclude": [
+    "app-example"
   ]
 }
