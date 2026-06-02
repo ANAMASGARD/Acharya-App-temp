@@ -44,16 +44,17 @@ _Items below will move into dated commit sections once committed._
 - `app/_layout.tsx` — imports `../global.css` (top layout for Fast Refresh)
 - `app/index.tsx` — Neo-Brutal cream/black `className` smoke test on home screen
 
+### `49dd7e5` — docs: add project memory log and Acharya-focused README
+
+- Added `memory/memory.md` (this file) at repo root `memory/` folder
+- README replaced generic Expo template copy with Acharya overview, scripts, layout, NativeWind notes
+- Links to `AGENTS.md` and `memory/memory.md` for onboarding
+
 ---
 
 ## In progress (not yet committed)
 
-_Items below will move into dated commit sections once committed._
-
-### Pending — README + memory log
-
-- README rewritten for Acharya (not generic Expo template)
-- Ongoing commit-by-commit history in `memory/memory.md`
+_None — add the next feature section here after your next commit._
 
 ---
 
