@@ -50,6 +50,10 @@ _Items below will move into dated commit sections once committed._
 - README replaced generic Expo template copy with Acharya overview, scripts, layout, NativeWind notes
 - Links to `AGENTS.md` and `memory/memory.md` for onboarding
 
+### `a3a2b68` — docs: record README and memory commit in project memory log
+
+- Finalized changelog entry for `49dd7e5`; cleared stale “In progress” section
+
 ---
 
 ## In progress (not yet committed)
