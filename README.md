@@ -1,50 +1,88 @@
-# Welcome to your Expo app 👋
+# Acharya
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+AI-powered teaching assistant for teachers — record classroom sessions, transcribe with Sarvam AI, and get actionable teaching reports. Built with **Expo SDK 54** and **Expo Router**.
+
+See **[AGENTS.md](./AGENTS.md)** for full product vision, architecture, and implementation rules.  
+See **[memory/memory.md](./memory/memory.md)** for a commit-by-commit log of what has been done so far.
+
+---
+
+## Requirements
+
+- Node.js 18+
+- npm (or yarn/pnpm)
+- [Expo Go](https://expo.dev/go) or a [development build](https://docs.expo.dev/develop/development-builds/introduction/) for device testing
+
+---
 
 ## Get started
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+After changing NativeWind or Metro config, clear the bundler cache:
+
+```bash
+npx expo start --clear
+```
+
+Open the app on a device or simulator from the Expo CLI menu.
+
+---
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm start` | Start Expo dev server |
+| `npm run android` | Start with Android |
+| `npm run ios` | Start with iOS |
+| `npm run web` | Start web |
+| `npm run lint` | ESLint (`expo lint`) |
+
+Typecheck (when needed):
+
+```bash
+npx tsc --noEmit
+```
+
+---
+
+## Project layout
+
+```txt
+app/              # Expo Router screens (compose UI here)
+components/       # Reusable UI (as features grow)
+memory/           # Project memory log (commit history)
+AGENTS.md         # Agent + developer source of truth
+global.css        # Tailwind v4 + NativeWind theme imports
+```
+
+Starter template code from `create-expo-app` lives under **`app-example/`** for reference; active routes are under **`app/`**.
+
+---
+
+## Styling (NativeWind v5)
+
+This project uses **NativeWind v5** (preview) with **Tailwind CSS v4**:
+
+- Utilities via `className` on React Native components where supported
+- `global.css` imported in `app/_layout.tsx` (not in the Router entry file)
+- Neo-Brutal shadows, press states, and some RN-specific components still use `StyleSheet` per `AGENTS.md`
+
+Docs: [NativeWind v5 installation](https://www.nativewind.dev/v5/getting-started/installation)
+
+---
+
+## Status
+
+Early setup: minimal home screen, NativeWind configured, full product features (recorder, calendar, chat, etc.) not implemented yet. Track progress in **[memory/memory.md](./memory/memory.md)**.
+
+---
 
 ## Learn more
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- [Expo documentation](https://docs.expo.dev/)
+- [Expo Router](https://docs.expo.dev/router/introduction/)
