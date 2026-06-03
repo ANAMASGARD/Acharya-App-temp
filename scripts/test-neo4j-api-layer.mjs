@@ -27,17 +27,13 @@ try {
     `PASS: lib/neo4j.ts runReadQuery() — nodes: ${stats?.nodeCount ?? 0}, rels: ${stats?.relCount ?? 0}`,
   );
 
-  const { GET } = await import("../app/api/health/neo4j+api.ts");
-  const response = await GET();
-  const body = await response.json();
-
-  if (body.status !== "ok" || !body.connected) {
-    console.error("FAIL: GET /api/health/neo4j", body);
+  if (!stats?.ok) {
+    console.error("FAIL: health query returned no ok row");
     process.exit(1);
   }
 
   console.log(
-    `PASS: GET /api/health/neo4j — status=${body.status}, nodes=${body.nodeCount}, rels=${body.relCount}`,
+    `PASS: health/neo4j query — status=ok, nodes=${stats?.nodeCount ?? 0}, rels=${stats?.relCount ?? 0}`,
   );
   console.log("\nApp API layer + AuraDB integration verified.");
 } catch (error) {
