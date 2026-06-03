@@ -11,12 +11,12 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 5 — Recorder UI** (implemented in working tree; **not committed yet**) |
-| **Previous phases** | Phase 0–3.6 committed → Phase 4 Home (`849c971`) → Phase 4b Profile (`8da15e7`) |
+| **Phase** | **Phase 5b — Recorder pipeline** (audio, STT, Aura) — next |
+| **Previous phases** | Phase 0–3.6 → Phase 4 Home (`849c971`) → Phase 4b Profile (`8da15e7`) → Phase 5 Recorder UI (`58e1274`) |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — use `npm run start:go` or press `s` after `expo start` (project has `expo-dev-client`, default targets dev build QR) |
-| **Last committed feature** | Profile settings hub (`8da15e7`) |
-| **Latest work (uncommitted)** | **Core Recorder screen UI** (`05-core-recorder.png`) — simulated record/stop, timer, form, transcript card |
+| **Last committed feature** | Core recorder screen UI (`58e1274`) |
+| **Latest work (uncommitted)** | _None — awaiting Phase 5b (expo-audio, backend)._ |
 
 ### What works today (if `.env` is configured)
 
@@ -111,7 +111,7 @@ Phase 3.5 Language pick     ✅ committed   `/language`, SecureStore prefs, gate
 Phase 3.6 Tab navigation   ✅ committed   `c5a006f` custom bar, Lottie mic + settings
 Phase 4  Home dashboard     ✅ committed   `849c971` — `04-home-dashboard.png`
 Phase 4b Profile/Settings   ✅ committed   `8da15e7` — Neo-Brutal hub + Clerk account
-Phase 5  Recorder UI         🟡 working tree  `05-core-recorder.png` — UI only (uncommitted)
+Phase 5  Recorder UI         ✅ committed   `58e1274` — `05-core-recorder.png` (UI only)
 Phase 5b Recorder pipeline  ⬜ planned     expo-audio, Sarvam, Gemini → Aura nodes
 Phase 6  Core product       ⬜ planned     calendar UI, chat, notes RAG on Aura
 ```
@@ -184,42 +184,7 @@ Profile → Sign out → /onboarding
 
 ## 4. Current State (working tree)
 
-> **Status:** Phase 5 Recorder UI — **ready to commit** (uncommitted as of 2026-06-03).
-
-### Summary
-
-**Core Recorder screen (UI only)** — matches `prompt_material/05-core-recorder.png` + user refinements (two-card layout, smaller timer, larger bold yellow play button, spacing fixes).
-
-- Route: `app/(tabs)/recorder.tsx` → `RecorderScreen`
-- **Session card:** TOPIC / SUBJECT / CLASS (required), dashed divider, compact timer, play/stop (yellow `#FFCC00` → red + X), status text (“Ready to record” / “Recording…” / helper when form incomplete)
-- **Transcript card:** “CLASS TRANSCRIBE” — **yellow header bar**, **black title text**, rounded top corners (`overflow: hidden`), white transcript panel, SEND (disabled without transcript)
-- **State:** `useRecorderUi` — local React state only (no Zustand recorder store yet)
-- **Bug fixes in this work:** pulse ring idle placeholder blocked taps (fixed: `null` when idle + button `zIndex`); Metro web broke on `@clerk/expo/native` (platform files); Expo Go vs dev client documented (`start:go`)
-
-### Files added/changed (working tree)
-
-| Path | Change |
-|------|--------|
-| `app/(tabs)/recorder.tsx` | `RecorderScreen` instead of placeholder |
-| `components/recording/*` | Full recorder UI (screen, form, timer, button, pulse, transcript, neo card, divider, status) |
-| `data/recorder-options.ts` | Subject + class level options |
-| `hooks/use-recorder-ui.ts` | Form + simulated recording + timer |
-| `components/profile/profile-native-account-view.native.tsx` | Native Clerk `UserProfileView` |
-| `components/profile/profile-native-account-view.tsx` | Web/default fallback (no native import) |
-| `components/navigation/tab-lottie-icon.web.tsx` | Web tab Lottie fallback (static mic image) |
-| `package.json` | `"start:go": "expo start --go"` |
-
-### UX decisions (recorder)
-
-- No hamburger menu (removed per user feedback)
-- Timer **~26px**; play button **104px**, bold yellow; timer and button grouped with **4px** gap
-- Status text close below button (reduced stage clearance + `marginTop: xs`)
-- Recording requires topic + subject + class; fields lock while “recording”
-- Phase 5b will swap hook internals for `expo-audio`, store, API, Sarvam — UI components stay largely the same
-
-### Suggested commit
-
-`feat: core recorder screen UI with simulated record state (Phase 5)`
+> **Status:** _None — awaiting Phase 5b (recorder audio + backend pipeline)._
 
 ---
 
@@ -285,12 +250,17 @@ Read top-to-bottom = project timeline.
 - Profile hub, `/profile/account`, image picker, prefs, sign out
 - Clerk native account gated for dev build / Expo Go fallback
 
+### `58e1274` — feat: core recorder screen UI with simulated record state (Phase 5)
+
+- Neo-Brutal recorder tab: session card (form, timer, play/stop) + transcript card
+- `hooks/use-recorder-ui.ts`, `data/recorder-options.ts`, `components/recording/*`
+- Clerk/Lottie platform splits for web bundle; `npm run start:go` for Expo Go
+
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Commit Phase 5** — recorder UI (`components/recording/`, hooks, data)
-2. **Phase 5b** — `expo-audio`, `store/recorder-store.ts`, chunk upload, POST `/api/sessions`, Sarvam STT → transcript panel
+1. **Phase 5b** — `expo-audio`, `store/recorder-store.ts`, chunk upload, POST `/api/sessions`, Sarvam STT → transcript panel
 3. **Calendar** — session history from Aura `(Teacher)-[:TAUGHT]->(Session)`
 4. **Wire Home to Aura** — replace static `data/home-dashboard.ts`
 5. **Notes verification UI** — `prompt_material/09-notes-verify.png`
@@ -316,10 +286,10 @@ When you finish a meaningful commit:
 |------|--------|
 | `prompt_material/04-home-dashboard.png` | Home dashboard — **implemented** (`849c971`) |
 | `prompt_material/01-design-system.png` | Neo-Brutal palette — Home, Profile, Recorder |
-| `prompt_material/05-core-recorder.png` | Recorder — **UI implemented** (working tree; audio pipeline next) |
+| `prompt_material/05-core-recorder.png` | Recorder — **UI implemented** (`58e1274`; audio pipeline next) |
 | `prompt_material/06-teaching-calendar.png` | Calendar |
 | `prompt_material/09-notes-verify.png` | Notes verification |
 
 ---
 
-*Last updated: 2026-06-03 — Phase 5 Recorder UI (uncommitted). HEAD on `dev` at `8da15e7`.*
+*Last updated: 2026-06-03 — Phase 5 Recorder UI committed. HEAD on `dev` at `58e1274`.*
