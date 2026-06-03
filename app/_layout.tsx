@@ -1,5 +1,6 @@
 import "../global.css";
 
+import { usePreferencesHydration } from "@/hooks/use-preferences-hydration";
 import { fontAssets } from "@/theme/fonts";
 import { colors } from "@/theme/colors";
 import { ClerkProvider } from "@clerk/expo";
@@ -21,6 +22,7 @@ if (!publishableKey) {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(fontAssets);
+  usePreferencesHydration();
 
   useEffect(() => {
     if (fontsLoaded || fontError) {

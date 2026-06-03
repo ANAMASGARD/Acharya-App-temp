@@ -11,12 +11,12 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 3 — Auth + AuraDB foundation** (built locally; **not yet committed**) |
-| **Previous phases** | Phase 0 bootstrap → Phase 1 design system → Phase 2 onboarding (**committed**) |
-| **Branch** | `dev` (HEAD `00ba6ae`; auth + Neo4j work is **uncommitted** on working tree) |
-| **Runnable in Expo Go?** | Yes — auth UI works with Clerk publishable key; **AuraDB requires full `.env`** (see §3 Environment) |
-| **Last committed feature** | 3-page onboarding carousel (`00ba6ae`) |
-| **Latest uncommitted work** | Clerk auth, Neo4j Aura graph layer, API routes (health, sessions) |
+| **Phase** | **Phase 3.5 — Language selection** (post-login gate; committing now) |
+| **Previous phases** | Phase 0–2 committed → Phase 3 Auth + Aura (`4ac6e6f`) |
+| **Branch** | `dev` |
+| **Runnable in Expo Go?** | Yes — auth + language flow; **AuraDB requires full `.env`** (see §3 Environment) |
+| **Last committed feature** | Clerk auth + Neo4j Aura foundation (`4ac6e6f`) |
+| **Latest work (this commit)** | Neo-Brutal language screen, Zustand + SecureStore prefs, post-login gate |
 
 ### What works today (if `.env` is configured)
 
@@ -26,7 +26,9 @@
 - Custom Sign Up / Sign In (Neo-Brutal UI, no password fields)
 - Email OTP via Clerk (6-digit modal, auto-submit on last digit)
 - Google / Facebook OAuth via `useSSO` + browser (Expo Go)
-- Signed-in users land on `/` (home placeholder); unsigned redirect to onboarding
+- Signed-in users: **no language saved** → `/language`; after Confirm → `/` (home stub)
+- Language preference persisted via Zustand + **expo-secure-store** (AsyncStorage native module failed in Expo Go)
+- Signed-out users → `/onboarding`
 
 **AuraDB (needs full `.env` — Clerk secret + Neo4j Aura credentials)**
 
@@ -42,13 +44,21 @@
 - `npm run neo4j:apply-schema` — pass (12 constraints/indexes)
 - `npm run neo4j:test` — pass (MERGE Teacher, TAUGHT Session, cleanup)
 - `GET /api/health/neo4j` — HTTP 200, `connected: true`
-- `npm run lint` / `npx tsc --noEmit` / `npx expo-doctor` — pass
+- `npm run lint` / `npx tsc --noEmit` / `npx expo-doctor` — pass (2026-06-03, language feature)
 
 **Aura instance:** Provisioned and verified live. Schema applied via `npm run neo4j:apply-schema` (no cypher-shell required).
 
+### Language selection (signed-in)
+
+- Route `/language` — 23 Sarvam Indian languages + English (`data/languages.ts`)
+- Neo-Brutal UI: search, Popular / All sections, rounded cards, green check toggle, Confirm CTA
+- Footer: Confirm + `earth.png` (up to 480×300px), pinned bottom
+- `store/preferences-store.ts` + `hooks/use-language-gate.ts` + SecureStore persist adapter
+- Home: change-language link + clear-storage test button
+
 ### Not built yet
 
-- Home dashboard (`prompt_material/04-home-dashboard.png`)
+- Home dashboard (`prompt_material/04-home-dashboard.png` — note: `04-language-selection-screen.png` is done)
 - Recorder (`expo-audio`), chunk upload, Sarvam STT pipeline
 - Transcript/report nodes on Aura, calendar UI, chat coach, notes verification (RAG)
 - Tab navigation
@@ -61,8 +71,9 @@
 Phase 0  Bootstrap          ✅ committed   Expo 54 shell, AGENTS.md
 Phase 1  Design system      ✅ committed   theme/, global.css, fonts
 Phase 2  Onboarding         ✅ committed   /onboarding (was /), 3 slides
-Phase 3  Auth + AuraDB      🟡 local only  Clerk, API routes, Neo4j graph scaffold
-Phase 4  Home dashboard     ⬜ planned     prompt_material/04
+Phase 3  Auth + AuraDB      ✅ committed   `4ac6e6f` Clerk, API routes, Neo4j graph
+Phase 3.5 Language pick     ✅ committing  `/language`, SecureStore prefs, gate
+Phase 4  Home dashboard     ⬜ planned     prompt_material/04-home-dashboard
 Phase 5  Recorder pipeline ⬜ planned     expo-audio, Sarvam, Gemini → Aura nodes
 Phase 6  Core product       ⬜ planned     calendar, chat, notes RAG on Aura
 ```
@@ -75,7 +86,8 @@ Phase 6  Core product       ⬜ planned     calendar, chat, notes RAG on Aura
 
 | Route | File | Who sees it | Notes |
 |-------|------|-------------|-------|
-| `/` | `app/index.tsx` | Signed-in only | Home stub |
+| `/` | `app/index.tsx` | Signed-in + language set | Home stub; redirects to `/language` if no prefs |
+| `/language` | `app/language.tsx` | Signed-in | Post-login language gate; Confirm → `/` |
 | `/onboarding` | `app/onboarding.tsx` | New users | 3-slide carousel; Get Started → `/sign-up` |
 | `/sign-up` | `app/(auth)/sign-up.tsx` | Signed-out | NAME + EMAIL, social + email OTP |
 | `/sign-in` | `app/(auth)/sign-in.tsx` | Signed-out | EMAIL only, social + email OTP |
@@ -85,8 +97,8 @@ Phase 6  Core product       ⬜ planned     calendar, chat, notes RAG on Aura
 
 ```
 App open → / → (unsigned) → /onboarding → Get Started → /sign-up
-  → Continue with Email → 6-digit modal → verify → / (home)
-  → Continue with Google/Facebook → OAuth browser → / (home)
+  → Continue with Email → 6-digit modal → verify → / → /language (first time) → Confirm → / (home)
+  → Continue with Google/Facebook → OAuth browser → same language gate
 /sign-in ↔ /sign-up via cross-links
 ```
 
@@ -103,7 +115,10 @@ App open → / → (unsigned) → /onboarding → Get Started → /sign-up
 | `lib/api-client.ts` | Authenticated fetch to `/api/*` |
 | `app/api/` | Health + sessions API routes (Clerk-verified; no auth stored in Aura) |
 | `neo4j/` | `schema.cypher`, `graph-model.md` |
-| `hooks/` | `use-social-auth.ts`, `use-warm-up-browser.ts` |
+| `hooks/` | `use-social-auth.ts`, `use-warm-up-browser.ts`, `use-language-gate.ts`, `use-preferences-hydration.ts` |
+| `store/` | `preferences-store.ts` (Zustand persist → SecureStore) |
+| `data/languages.ts` | 23 Sarvam BCP-47 codes + native labels |
+| `components/language/` | Search bar + list item (Neo-Brutal cards) |
 | `theme/` | colors, typography, fonts, tokens (Neo-Brutal) |
 | `data/onboarding-slides.ts` | Static onboarding copy + mascots |
 | `constants/images.ts` | Centralized image imports |
@@ -140,9 +155,9 @@ Clerk Dashboard checklist: Native API on, email verification code enabled, Googl
 
 ---
 
-## 4. Current State (working tree — uncommitted)
+## 4. Current State (working tree)
 
-> **Status:** Auth + Neo4j Aura foundation implemented locally; **awaiting git commit**.
+> **Status:** Language selection feature ready; committed with this memory update.
 
 ### Neo4j Aura — what “installed” means
 
@@ -172,7 +187,30 @@ Clerk Dashboard checklist: Native API on, email verification code enabled, Googl
 - Vector index placeholder for future RAG (`chunk_embedding`, 1536 dims)
 - `app.json` web `output: "server"` so API routes work
 
-### Changed / added since `00ba6ae`
+### Changed / added — language selection (latest)
+
+**Routes & gate**
+
+- `app/language.tsx` — Neo-Brutal picker (search, sections, Confirm, earth footer)
+- `app/index.tsx` — redirect to `/language` when `selectedLanguageId` null; home links for change/clear test
+
+**Data & state**
+
+- `data/languages.ts`, `types/language.ts` — 23 Sarvam languages (22 Indian + `en-IN`)
+- `store/preferences-store.ts` — Zustand persist; `lib/preferences-persist-storage.ts` uses **expo-secure-store** (fixes AsyncStorage native null in Expo Go)
+- `hooks/use-preferences-hydration.ts` — root rehydrate + safety timeout
+- `hooks/use-language-gate.ts` — Clerk loaded + store hydrated before routing
+
+**UI**
+
+- `components/language/language-search-bar.tsx`, `language-list-item.tsx` — rounded cards, green check, tap-to-toggle selection
+- `constants/images.ts` — `earth` asset
+- `theme/tokens.ts` — `radii.lg`, `radii.xl`
+- Packages: `zustand`, `@react-native-async-storage/async-storage@2.2.0` (expo pin; prefs use SecureStore)
+
+**Validation (2026-06-03):** `npm run lint`, `npx tsc --noEmit`, `npx expo-doctor`, `npm run verify:neo4j` — all pass.
+
+### Previously committed — Auth + Aura (`4ac6e6f`)
 
 **Routes**
 
@@ -299,11 +337,15 @@ Read top-to-bottom = project timeline. **Feature commits** are detailed; **docs/
 
 ---
 
-### _(pending commit)_ — feat: Auth + Neo4j Aura foundation
+### `4ac6e6f` — feat: Clerk auth and Neo4j Aura foundation
 
 - Clerk auth screens, OAuth, email OTP
 - Neo4j Aura driver, schema, session graph repo, API routes
-- See **§4 Current State** — not yet on `dev` remote
+
+### `cab10a0` — feat: post-login language selection with SecureStore persistence
+
+- `/language` Neo-Brutal picker; 23 Sarvam languages; SecureStore persistence
+- Post-login gate on `/`; home change-language + test clear-storage
 
 ---
 
@@ -341,7 +383,8 @@ When you finish a meaningful commit:
 | `prompt_material/01-design-system.png` | Design kit / tokens |
 | `prompt_material/02-onboarding-screen.png` | Onboarding ✅ |
 | `prompt_material/03-auth-screen.png` | Sign up / sign in ✅ (local) |
-| `prompt_material/04-home-dashboard.png` | Home — next |
+| `prompt_material/04-language-selection-screen.png` | Language picker ✅ |
+| `prompt_material/04-home-dashboard.png` | Home dashboard — next |
 | `prompt_material/05-core-recorder.png` | Recorder |
 | `prompt_material/06-teaching-calendar.png` | Calendar |
 | `prompt_material/08-teacher-community.png` | Community |
@@ -349,4 +392,4 @@ When you finish a meaningful commit:
 
 ---
 
-*Last updated: Removed Aura sync UI; Clerk = auth only, Aura = product data with clerkId reference. HEAD commit: `00ba6ae`.*
+*Last updated: Language selection (`cab10a0`). HEAD on `dev`.*
