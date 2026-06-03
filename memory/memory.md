@@ -342,7 +342,7 @@ Read top-to-bottom = project timeline. **Feature commits** are detailed; **docs/
 - Clerk auth screens, OAuth, email OTP
 - Neo4j Aura driver, schema, session graph repo, API routes
 
-### `0dcfde6` — feat: post-login language selection with SecureStore persistence
+### `cab10a0` — feat: post-login language selection with SecureStore persistence
 
 - `/language` Neo-Brutal picker; 23 Sarvam languages; SecureStore persistence
 - Post-login gate on `/`; home change-language + test clear-storage
@@ -392,4 +392,4 @@ When you finish a meaningful commit:
 
 ---
 
-*Last updated: Language selection (`0dcfde6`). HEAD on `dev`.*
+*Last updated: Language selection (`cab10a0`). HEAD on `dev`.*
