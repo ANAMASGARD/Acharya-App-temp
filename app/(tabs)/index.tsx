@@ -1,5 +1,5 @@
-import { TabPlaceholderScreen } from "@/components/navigation/tab-placeholder-screen";
+import { HomeScreen } from "@/components/home/home-screen";
 
 export default function HomeTabScreen(): React.ReactElement {
-  return <TabPlaceholderScreen title="Home" />;
+  return <HomeScreen />;
 }

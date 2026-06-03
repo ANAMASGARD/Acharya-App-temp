@@ -11,12 +11,12 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 3.6 — Tab navigation** (custom bottom bar; committing now) |
-| **Previous phases** | Phase 0–2 committed → Phase 3 Auth + Aura (`4ac6e6f`) → Phase 3.5 Language (`cab10a0`) |
+| **Phase** | **Phase 4 — Home dashboard** (implemented in working tree; **not committed yet**) |
+| **Previous phases** | Phase 0–2 committed → Phase 3 Auth + Aura (`4ac6e6f`) → Phase 3.5 Language (`cab10a0`) → Phase 3.6 Tabs (`c5a006f`) |
 | **Branch** | `dev` |
-| **Runnable in Expo Go?** | Yes — auth, language gate, tab shell; **AuraDB requires full `.env`** (see §3 Environment) |
-| **Last committed feature** | Post-login language selection (`cab10a0`) |
-| **Latest work (this commit)** | Custom animated bottom tabs + Lottie recorder mic + rotating profile settings icon |
+| **Runnable in Expo Go?** | Yes — auth, language gate, tab shell, **Home dashboard UI**; **AuraDB requires full `.env`** (see §3 Environment) |
+| **Last committed feature** | Custom animated bottom tabs (`c5a006f`) |
+| **Latest work (uncommitted)** | Home dashboard matching `04-home-dashboard.png` — Clerk greeting, static cards, large logo in yellow header |
 
 ### What works today (if `.env` is configured)
 
@@ -27,7 +27,7 @@
 - Email OTP via Clerk (6-digit modal, auto-submit on last digit)
 - Google / Facebook OAuth via `useSSO` + browser (Expo Go)
 - Signed-in users: **no language saved** → `/language`; after Confirm → `/(tabs)` (Home tab)
-- Language preference persisted via Zustand + **expo-secure-store**
+- Language preference persisted via Zustand + **expo-secure-store** (used for gate; **not shown on Home header**)
 - Signed-out users → `/onboarding`
 
 **Tab navigation (`app/(tabs)/`)**
@@ -39,7 +39,19 @@
 - **Recorder:** Lottie mic + waveform (`assets/lottie/mic.json`), mint badge when idle (visible on black bar)
 - **Profile:** Lottie rotating settings gear (`assets/lottie/profile.json`)
 - **Home / Calendar / Chat:** Ionicons (mint inactive, black on yellow when active)
-- Placeholder screens only — no dashboard/recorder/calendar UI yet
+- **Home tab:** Full dashboard UI (see below) — other tabs still placeholders
+
+**Home dashboard (`/(tabs)` / `app/(tabs)/index.tsx`)**
+
+- Yellow header: `Namaste, {Clerk firstName}!` via `useUser()` + `hooks/use-home-greeting.ts`
+- Streak line + `streakFire` asset; static streak count from `data/home-dashboard.ts`
+- **Acharya logo** (`images.mascotLogo`) top-right, **100×100**, fully inside yellow header (no overlap onto cream)
+- Scrollable cream body with three Neo-Brutal cards:
+  - **Recent Activity** (white) — two static rows from `data/home-dashboard.ts`
+  - **Verified Notes Gaps** (mint) — body copy + black pill CTA
+  - **Start New Class Session** (cream) — tap navigates to `/(tabs)/recorder`
+- Components: `components/home/*` (`HomeScreen`, `HomeHeader`, `NeoDashboardCard`, section cards)
+- **Tab bar untouched** — per product request
 
 **AuraDB (needs full `.env` — Clerk secret + Neo4j Aura credentials)**
 
@@ -48,14 +60,10 @@
 - Live API routes: `GET /api/health/neo4j`, `GET|POST /api/sessions`
 - CLI: `npm run verify:neo4j`, `npm run neo4j:apply-schema`, `npm run neo4j:test`, `npm run neo4j:test-api`
 
-**Validation (last run — 2026-06-03, tab navigation commit):**
+**Validation (last run — 2026-06-03, home dashboard work):**
 
 - `npm run lint` — pass
 - `npx tsc --noEmit` — pass
-- `npx expo-doctor` — pass (18/18)
-- `npm run verify:neo4j` — pass
-- `npm run neo4j:test` — pass (8 integration checks)
-- `npm run neo4j:test-api` — pass (lib + health Cypher path)
 
 ### Language selection (signed-in)
 
@@ -65,10 +73,10 @@
 
 ### Not built yet
 
-- Home dashboard UI (`prompt_material/04-home-dashboard.png`)
 - Recorder capture (`expo-audio`), chunk upload, Sarvam STT pipeline
 - Calendar session list, chat coach, notes verification (RAG)
-- Real screen content inside tab routes (placeholders only)
+- Live Home data from Aura (dashboard still uses `data/home-dashboard.ts` static demo)
+- Real screen content for Calendar / Chat / Profile / Recorder tabs (placeholders except Home)
 
 ---
 
@@ -80,8 +88,8 @@ Phase 1  Design system      ✅ committed   theme/, global.css, fonts
 Phase 2  Onboarding         ✅ committed   /onboarding (was /), 3 slides
 Phase 3  Auth + AuraDB      ✅ committed   `4ac6e6f` Clerk, API routes, Neo4j graph
 Phase 3.5 Language pick     ✅ committed   `/language`, SecureStore prefs, gate
-Phase 3.6 Tab navigation   ✅ committing  `(tabs)`, custom bar, Lottie mic + settings
-Phase 4  Home dashboard     ⬜ planned     prompt_material/04-home-dashboard
+Phase 3.6 Tab navigation   ✅ committed   `c5a006f` custom bar, Lottie mic + settings
+Phase 4  Home dashboard     🟡 working tree  prompt_material/04-home-dashboard (uncommitted)
 Phase 5  Recorder pipeline ⬜ planned     expo-audio, Sarvam, Gemini → Aura nodes
 Phase 6  Core product       ⬜ planned     calendar UI, chat, notes RAG on Aura
 ```
@@ -95,7 +103,7 @@ Phase 6  Core product       ⬜ planned     calendar UI, chat, notes RAG on Aura
 | Route | File | Who sees it | Notes |
 |-------|------|-------------|-------|
 | `/` | `app/index.tsx` | All | Auth + language gate → redirects |
-| `/(tabs)` | `app/(tabs)/index.tsx` | Signed-in + language | Home placeholder |
+| `/(tabs)` | `app/(tabs)/index.tsx` | Signed-in + language | **Home dashboard** (`HomeScreen`) |
 | `/(tabs)/calendar` | `app/(tabs)/calendar.tsx` | Signed-in | Calendar placeholder |
 | `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Signed-in | Recorder placeholder (center tab) |
 | `/(tabs)/chat` | `app/(tabs)/chat.tsx` | Signed-in | Chat placeholder |
@@ -118,8 +126,13 @@ Signed-in with language → / → redirect /(tabs)
 | Path | Role |
 |------|------|
 | `app/(tabs)/` | Tab screens + `_layout.tsx` (custom tab bar) |
+| `components/home/` | Home dashboard UI (`HomeScreen`, header, Neo-Brutal cards) |
 | `components/navigation/` | `AcharyaTabBar`, `TabBarItem`, `TabBarIcon`, `TabLottieIcon`, placeholders |
+| `data/home-dashboard.ts` | Static dashboard copy (streak, activity, notes, start session) |
+| `types/home-dashboard.ts` | Typed shapes for home dashboard data |
+| `hooks/use-home-greeting.ts` | Clerk display name for Home header |
 | `assets/lottie/` | `mic.json`, `profile.json` (tab animations) |
+| `constants/images.ts` | Centralized images incl. `mascotLogo`, `streakFire` |
 | `constants/lottie.ts` | Centralized Lottie imports |
 | `components/auth/` | Auth shell, social buttons, verification modal |
 | `lib/neo4j.ts` | Aura driver singleton (API routes only) |
@@ -131,6 +144,7 @@ Signed-in with language → / → redirect /(tabs)
 
 - **Style:** Neo-Brutal — thick black borders, hard shadows, cream `#FFF8E7`
 - **Tab bar:** Black `#000000`, mint inactive `#B8E5E1`, yellow active pill `#FFDB33`
+- **Home header:** Yellow `#FFDB33`, greeting + streak + large mascot logo (in-header only)
 - **Fonts:** Archivo Black (headings), Space Grotesk (body)
 - **Packages added:** `lottie-react-native`, `react-native-reanimated` (tab animations)
 
@@ -149,7 +163,27 @@ Signed-in with language → / → redirect /(tabs)
 
 ## 4. Current State (working tree)
 
-> **Status:** _None — tab navigation committed with this memory update._
+> **Status:** Phase 4 Home dashboard — **ready to commit** (uncommitted as of 2026-06-03).
+
+**Files added/changed:**
+
+| Path | Change |
+|------|--------|
+| `app/(tabs)/index.tsx` | Renders `HomeScreen` |
+| `components/home/` | `home-screen`, `home-header`, `neo-dashboard-card`, `recent-activity-card`, `notes-gaps-card`, `start-session-card` |
+| `data/home-dashboard.ts` | Static streak, recent activity, notes gaps, start session |
+| `types/home-dashboard.ts` | Dashboard types |
+| `hooks/use-home-greeting.ts` | Clerk `useUser()` → `Namaste, {name}!` |
+| `constants/images.ts` | Added `streakFire` |
+
+**UX decisions (post-mockup tweaks):**
+
+- Removed **“Teaching in: …”** line from Home header (language still persisted for gate/STT later).
+- Logo: **100×100**, right side of yellow header only (`overflow: hidden` on header) — not overlapping cream body.
+
+**Not changed:** `components/navigation/*`, `app/(tabs)/_layout.tsx` tab bar.
+
+**Suggested commit subject:** `feat: home dashboard with Clerk greeting and Neo-Brutal cards`
 
 ---
 
@@ -158,10 +192,12 @@ Signed-in with language → / → redirect /(tabs)
 | Layer | Technology |
 |-------|------------|
 | Framework | Expo SDK 54, Expo Router, React 19 |
-| Styling | NativeWind v5 preview, Tailwind CSS v4 |
+| Styling | NativeWind v5 preview, Tailwind CSS v4 (+ StyleSheet on Home for Neo-Brutal shadows) |
 | Auth | Clerk `@clerk/expo` + `@clerk/backend` |
+| State | Zustand (`preferences-store`) + SecureStore persist |
 | Database | **Neo4j AuraDB** — `neo4j-driver`, `lib/neo4j.ts` |
 | Tab UI | Custom tab bar, Reanimated, Lottie (`lottie-react-native`) |
+| Images | `expo-image` + `constants/images.ts` |
 | Icons | `@expo/vector-icons` (Ionicons) + Lottie for Recorder/Profile |
 | Planned voice | Sarvam AI (backend only) |
 | Planned analysis | Gemini (backend only) |
@@ -212,14 +248,18 @@ Read top-to-bottom = project timeline.
 - **Fix:** `scripts/test-neo4j-api-layer.mjs` — health check without `@/` API import (Node path alias)
 - **Validation:** lint, tsc, expo-doctor, verify:neo4j, neo4j:test, neo4j:test-api — all pass
 
+### `0f8a5e4` — docs: record tab navigation commit hash in memory
+
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Home dashboard** — `prompt_material/04-home-dashboard.png`
-2. **Recorder** — `expo-audio`, chunked capture, processing states
+1. **Commit Phase 4** — home dashboard (working tree)
+2. **Recorder** — `expo-audio`, chunked capture, processing states (`prompt_material/05-core-recorder.png`)
 3. **Calendar** — session history from Aura `(Teacher)-[:TAUGHT]->(Session)`
-4. **Backend** — Sarvam STT, Gemini analysis; extend Aura graph
+4. **Wire Home to Aura** — replace `data/home-dashboard.ts` with live recent activity / streak when APIs exist
+5. **Notes verification UI** — `prompt_material/09-notes-verify.png`; link Verified Notes Gaps CTA
+6. **Backend** — Sarvam STT, Gemini analysis; extend Aura graph
 
 ---
 
@@ -239,11 +279,11 @@ When you finish a meaningful commit:
 
 | File | Screen |
 |------|--------|
-| `prompt_material/04-home-dashboard.png` | Home dashboard — next (tab bar matches mockup) |
-| `prompt_material/05-core-recorder.png` | Recorder |
+| `prompt_material/04-home-dashboard.png` | Home dashboard — **implemented** (working tree) |
+| `prompt_material/05-core-recorder.png` | Recorder — next |
 | `prompt_material/06-teaching-calendar.png` | Calendar |
 | `prompt_material/09-notes-verify.png` | Notes verification |
 
 ---
 
-*Last updated: tab navigation (`c5a006f`). HEAD on `dev`.*
+*Last updated: Phase 4 home dashboard (uncommitted). HEAD on `dev` at `0f8a5e4`.*
