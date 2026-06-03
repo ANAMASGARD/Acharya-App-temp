@@ -11,12 +11,12 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 4 — Home + Profile** (implemented in working tree; **not committed yet**) |
-| **Previous phases** | Phase 0–2 committed → Phase 3 Auth + Aura (`4ac6e6f`) → Phase 3.5 Language (`cab10a0`) → Phase 3.6 Tabs (`c5a006f`) |
+| **Phase** | **Phase 5b — Recorder pipeline** (audio, STT, Aura) — next |
+| **Previous phases** | Phase 0–3.6 → Phase 4 Home (`849c971`) → Phase 4b Profile (`8da15e7`) → Phase 5 Recorder UI (`58e1274`) |
 | **Branch** | `dev` |
-| **Runnable in Expo Go?** | Yes — auth, language gate, tabs, **Home dashboard**, **Profile hub**; Clerk full account UI needs **dev build**; AuraDB needs full `.env` |
-| **Last committed feature** | Custom animated bottom tabs (`c5a006f`) |
-| **Latest work (uncommitted)** | Home dashboard (`04-home-dashboard.png`) + **Profile/Settings tab** (Neo-Brutal hub, Clerk account, language, photo, prefs) |
+| **Runnable in Expo Go?** | Yes — use `npm run start:go` or press `s` after `expo start` (project has `expo-dev-client`, default targets dev build QR) |
+| **Last committed feature** | Core recorder screen UI (`58e1274`) |
+| **Latest work (uncommitted)** | _None — awaiting Phase 5b (expo-audio, backend)._ |
 
 ### What works today (if `.env` is configured)
 
@@ -34,10 +34,10 @@
 
 - Order: **Home | Calendar | Recorder (center) | Chat | Profile**
 - Custom `AcharyaTabBar`: black bar, mint inactive labels, yellow sliding circle for active tab
-- **Recorder:** Lottie mic (`assets/lottie/mic.json`)
-- **Profile:** Lottie settings gear (`assets/lottie/profile.json`) — opens full **Profile hub** (not placeholder)
+- **Recorder:** Lottie mic (`assets/lottie/mic.json`); tab opens **full recorder UI** (not placeholder)
+- **Profile:** Lottie settings gear — full **Profile hub**
 - **Home:** Full dashboard UI
-- **Calendar / Chat / Recorder:** Still placeholders (except navigation targets from Profile shortcuts)
+- **Calendar / Chat:** Still placeholders
 
 **Home dashboard (`/(tabs)` / `app/(tabs)/index.tsx`)**
 
@@ -49,42 +49,52 @@
 
 **Profile / Settings (`/(tabs)/profile` + `/profile/account`)**
 
-- **Hub** (`components/profile/profile-screen.tsx`): minimal header — **avatar + name only** (no user ID, email, or “Your profile” title block)
-- Change photo: `expo-image-picker` → `user.setProfileImage` (base64 data URL)
-- **At a glance** card: teaching language, 2FA status, connected providers, member since
+- **Hub** (`components/profile/profile-screen.tsx`): avatar + name, at-a-glance, account menu, app settings, help, sign out
+- Change photo: `expo-image-picker` → `user.setProfileImage`
 - **Manage account & security** → `/profile/account`
-- Account menu: Edit name (modal), profile/email, security & 2FA, connected accounts, active devices
-- **App settings:** teaching language → `/language`, push notifications toggle (persisted in prefs store), recorder/calendar shortcuts
-- **Help & about:** support mailto, privacy/terms (browser), app version
-- **Sign out:** red destructive button (`colors.destructive`), confirm dialog → `/onboarding`
-- **Clerk full account UI:** `UserProfileView` (`@clerk/expo/native`) on **dev build only**; Expo Go uses fallback via `lib/clerk-native-profile.ts` (avoids `ClerkUserProfileView` crash)
-- Optional browser fallback: `EXPO_PUBLIC_CLERK_ACCOUNT_PORTAL_URL` in `.env`
+- **Clerk account UI:** platform split — `profile-native-account-view.native.tsx` (dev build + `UserProfileView`), `.tsx` / web fallback; **no top-level `@clerk/expo/native` import on web** (fixes Metro web bundle)
+- Expo Go: fallback via `lib/clerk-native-profile.ts`
+- Optional browser: `EXPO_PUBLIC_CLERK_ACCOUNT_PORTAL_URL`
 
-**AuraDB (needs full `.env` — Clerk secret + Neo4j Aura credentials)**
+**Recorder (`/(tabs)/recorder` — Phase 5 UI only)**
 
-- `neo4j-driver` + server-only `lib/neo4j.ts` (enforces `neo4j+s://`)
-- Schema DDL in `neo4j/schema.cypher`
+- **Screen:** `components/recording/recorder-screen.tsx` — title “Record Class Session”
+- **Session card:** Topic / Subject / Class form (`data/recorder-options.ts`), dashed divider, timer + play/stop button + status
+- **Simulated recording:** `hooks/use-recorder-ui.ts` — yellow play → red X, timer `MM:SS`, pulse rings, REC badge; requires all three fields filled to start
+- **Transcript card:** yellow header bar “CLASS TRANSCRIBE” (black text), white transcript area, SEND button (disabled until transcript exists — UI only)
+- **Not built:** `expo-audio`, chunk upload, Sarvam STT, Aura session writes, live transcript stream
+
+**Bundling / dev client notes**
+
+- `npm run start:go` — Expo Go (recommended for quick mobile UI test)
+- `npx expo start` — defaults to **development build** when `expo-dev-client` is installed
+- Web export passes after Clerk native + Lottie web splits (`profile-native-account-view.*`, `tab-lottie-icon.web.tsx`)
+
+**AuraDB (needs full `.env`)**
+
+- `neo4j-driver` + server-only `lib/neo4j.ts`
 - Live API routes: `GET /api/health/neo4j`, `GET|POST /api/sessions`
 - CLI: `npm run verify:neo4j`, `npm run neo4j:apply-schema`, `npm run neo4j:test`, `npm run neo4j:test-api`
 
-**Validation (last run — 2026-06-03, home + profile work):**
+**Validation (last run — 2026-06-03, recorder UI work):**
 
 - `npm run lint` — pass
 - `npx tsc --noEmit` — pass
+- `npx expo export --platform web` — pass
+- `npm run verify:neo4j`, `neo4j:test`, `neo4j:test-api` — pass
 
 ### Language selection (signed-in)
 
 - Route `/language` — 23 Sarvam Indian languages + English (`data/languages.ts`)
 - Neo-Brutal UI: search, Popular / All sections, Confirm CTA + `earth.png` footer
 - `store/preferences-store.ts` + SecureStore persist; gate via `hooks/use-language-gate.ts`
-- Reachable from Profile → App settings → Teaching language (back button when language already set)
 
 ### Not built yet
 
-- Recorder capture (`expo-audio`), chunk upload, Sarvam STT pipeline
+- Recorder **audio** (`expo-audio`), chunk upload, Sarvam STT pipeline, Gemini reports on Aura
 - Calendar session list, chat coach, notes verification (RAG)
 - Live Home data from Aura (dashboard still uses `data/home-dashboard.ts` static demo)
-- Real screen content for Calendar / Chat / Recorder tabs (placeholders)
+- Real screen content for Calendar / Chat tabs (placeholders)
 - FCM push delivery (toggle stores preference only)
 - Biometrics / passkeys on profile
 
@@ -99,9 +109,10 @@ Phase 2  Onboarding         ✅ committed   /onboarding (was /), 3 slides
 Phase 3  Auth + AuraDB      ✅ committed   `4ac6e6f` Clerk, API routes, Neo4j graph
 Phase 3.5 Language pick     ✅ committed   `/language`, SecureStore prefs, gate
 Phase 3.6 Tab navigation   ✅ committed   `c5a006f` custom bar, Lottie mic + settings
-Phase 4  Home dashboard     🟡 working tree  `04-home-dashboard.png` (uncommitted)
-Phase 4b Profile/Settings   🟡 working tree  Neo-Brutal hub + Clerk account (uncommitted)
-Phase 5  Recorder pipeline ⬜ planned     expo-audio, Sarvam, Gemini → Aura nodes
+Phase 4  Home dashboard     ✅ committed   `849c971` — `04-home-dashboard.png`
+Phase 4b Profile/Settings   ✅ committed   `8da15e7` — Neo-Brutal hub + Clerk account
+Phase 5  Recorder UI         ✅ committed   `58e1274` — `05-core-recorder.png` (UI only)
+Phase 5b Recorder pipeline  ⬜ planned     expo-audio, Sarvam, Gemini → Aura nodes
 Phase 6  Core product       ⬜ planned     calendar UI, chat, notes RAG on Aura
 ```
 
@@ -116,22 +127,21 @@ Phase 6  Core product       ⬜ planned     calendar UI, chat, notes RAG on Aura
 | `/` | `app/index.tsx` | All | Auth + language gate → redirects |
 | `/(tabs)` | `app/(tabs)/index.tsx` | Signed-in + language | **Home dashboard** (`HomeScreen`) |
 | `/(tabs)/calendar` | `app/(tabs)/calendar.tsx` | Signed-in | Calendar placeholder |
-| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Signed-in | Recorder placeholder (center tab) |
+| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Signed-in | **Recorder screen** (`RecorderScreen`) |
 | `/(tabs)/chat` | `app/(tabs)/chat.tsx` | Signed-in | Chat placeholder |
 | `/(tabs)/profile` | `app/(tabs)/profile.tsx` | Signed-in | **Profile hub** (`ProfileScreen`) |
-| `/profile/account` | `app/profile/account.tsx` | Signed-in | Clerk `UserProfileView` or Expo Go fallback |
+| `/profile/account` | `app/profile/account.tsx` | Signed-in | Clerk account (native / fallback) |
 | `/language` | `app/language.tsx` | Signed-in | Post-login language gate / change from Profile |
 | `/onboarding` | `app/onboarding.tsx` | New users | 3-slide carousel |
 | `/sign-up`, `/sign-in` | `app/(auth)/` | Signed-out | Clerk OTP + OAuth |
-| `(auth)/_layout` | `app/(auth)/_layout.tsx` | — | Redirects signed-in → `/(tabs)` |
 
 ### Auth + tab flow
 
 ```
 App open → / → (unsigned) → /onboarding → sign-up/sign-in
   → verify → / → /language (first time) → Confirm → /(tabs) Home
-Signed-in with language → / → redirect /(tabs)
-Profile → Manage account → /profile/account (native Clerk UI on dev build)
+Home “Start session” or center tab → /(tabs)/recorder
+Profile → Manage account → /profile/account
 Profile → Sign out → /onboarding
 ```
 
@@ -142,25 +152,23 @@ Profile → Sign out → /onboarding
 | `app/(tabs)/` | Tab screens + `_layout.tsx` (custom tab bar) |
 | `app/profile/` | Stack: `account.tsx` (Clerk account management) |
 | `components/home/` | Home dashboard UI |
-| `components/profile/` | Profile hub, header, menu cards, edit-name modal, account fallback |
-| `components/navigation/` | `AcharyaTabBar`, tab items, placeholders |
+| `components/profile/` | Profile hub, account (`.native.tsx` / `.tsx` split) |
+| `components/recording/` | Recorder screen, form, timer, button, transcript card, neo cards |
+| `components/navigation/` | `AcharyaTabBar`, Lottie icons (`tab-lottie-icon.web.tsx` for web) |
 | `data/home-dashboard.ts` | Static dashboard copy |
-| `hooks/use-home-greeting.ts` | Clerk display name (uses `lib/user-display-name.ts`) |
-| `hooks/use-profile-*.ts` | Photo upload, account actions, summary badges |
-| `lib/clerk-native-profile.ts` | Detect Expo Go / native view — gate `UserProfileView` |
-| `lib/user-display-name.ts` | Shared name + member-since formatting |
-| `constants/legal.ts` | Support email, privacy/terms URLs, portal env |
-| `store/preferences-store.ts` | Language + `pushNotificationsEnabled` (SecureStore) |
+| `data/recorder-options.ts` | Subject + class level picklists |
+| `hooks/use-recorder-ui.ts` | Simulated recorder state + timer |
+| `hooks/use-home-greeting.ts`, `hooks/use-profile-*.ts` | Home + profile helpers |
+| `lib/clerk-native-profile.ts`, `lib/user-display-name.ts` | Clerk / display helpers |
+| `store/preferences-store.ts` | Language + push notifications pref |
 | `theme/` | Neo-Brutal colors, typography, tokens |
 | `memory/` | This file |
 
 ### Design system (active)
 
-- **Style:** Neo-Brutal — thick black borders, hard shadows, cream `#FFF8E7`, rounded cards `radii.lg`
-- **Tab bar:** Black, mint inactive, yellow active pill
-- **Home header:** Yellow `#FFDB33`, greeting + streak + mascot logo
-- **Profile:** Cream scroll; mint/lavender accent cards; **red sign-out** button
-- **Fonts:** Archivo Black (headings), Space Grotesk (body)
+- **Style:** Neo-Brutal — thick black borders, hard shadows, cream `#FFF8E7`
+- **Recorder:** Two stacked neo cards — session (form + timer + **88–104px** yellow play button) + transcript (yellow header band, white body, SEND)
+- **Tab bar:** Black, mint inactive, yellow active pill; center mic Lottie
 
 ### Environment (`.env` — copy from `.env.example`)
 
@@ -168,7 +176,7 @@ Profile → Sign out → /onboarding
 |----------|----------|-----------------|
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | Clerk Dashboard → API keys |
 | `CLERK_SECRET_KEY` | Yes (API routes) | Clerk Dashboard → Secret keys |
-| `EXPO_PUBLIC_CLERK_ACCOUNT_PORTAL_URL` | Optional | Clerk Account Portal URL (Expo Go account fallback) |
+| `EXPO_PUBLIC_CLERK_ACCOUNT_PORTAL_URL` | Optional | Clerk Account Portal URL |
 | `NEO4J_URI` | Yes | Aura Console → Connect (`neo4j+s://…`) |
 | `NEO4J_USERNAME` / `NEO4J_PASSWORD` / `NEO4J_DATABASE` | Yes | Aura instance |
 
@@ -176,61 +184,7 @@ Profile → Sign out → /onboarding
 
 ## 4. Current State (working tree)
 
-> **Status:** Phase 4 Home + Phase 4b Profile — **ready to commit** (uncommitted as of 2026-06-03).
-
-### Summary of uncommitted work
-
-**A. Home dashboard** (matches `prompt_material/04-home-dashboard.png`)
-
-- Clerk greeting, static Neo-Brutal cards, logo in yellow header
-- Start session → recorder tab
-
-**B. Profile / Settings** (full user-facing scope)
-
-- Neo-Brutal profile hub on settings tab
-- Clerk account parity via native `UserProfileView` when dev build available
-- Expo Go safe: no native view render; fallback card + optional Account Portal URL
-- Teaching language, push pref toggle, shortcuts, help/legal, sign out
-
-### Files added/changed (working tree)
-
-| Path | Change |
-|------|--------|
-| `app/(tabs)/index.tsx` | Renders `HomeScreen` |
-| `app/(tabs)/profile.tsx` | Renders `ProfileScreen` (was placeholder) |
-| `app/profile/_layout.tsx`, `app/profile/account.tsx` | Clerk account stack |
-| `components/home/*` | Home dashboard components |
-| `components/profile/*` | Profile hub, header, menus, modal, fallback, native wrapper |
-| `data/home-dashboard.ts`, `types/home-dashboard.ts` | Static home data |
-| `hooks/use-home-greeting.ts` | Uses `lib/user-display-name.ts` |
-| `hooks/use-profile-photo.ts` | Image picker + `setProfileImage` |
-| `hooks/use-profile-account.ts` | Sign out, copy ID, portal browser |
-| `hooks/use-profile-summary.ts` | 2FA, providers, language, member since |
-| `lib/user-display-name.ts`, `lib/clerk-native-profile.ts` | Shared helpers |
-| `constants/legal.ts` | Support/legal links |
-| `store/preferences-store.ts` | Added `pushNotificationsEnabled` |
-| `package.json` | `expo-image-picker`, `expo-clipboard` |
-| `app.json` | Image picker plugin + iOS photo/camera usage strings |
-| `.env.example` | Optional `EXPO_PUBLIC_CLERK_ACCOUNT_PORTAL_URL` |
-
-### UX decisions
-
-**Home**
-
-- No “Teaching in: …” on header (language still in prefs for gate/STT later)
-- Logo 100×100 inside yellow header only
-
-**Profile**
-
-- Header shows **only avatar + display name** (removed user ID, email, page title/subtitle clutter)
-- Edit name moved to **Account → Edit name** menu row
-- Sign out button: **red** (`destructive` palette)
-- `UserProfileView` never rendered in Expo Go (`ExecutionEnvironment.StoreClient`)
-
-**Suggested commits (can be one or two):**
-
-1. `feat: home dashboard with Clerk greeting and Neo-Brutal cards`
-2. `feat: profile settings hub with Clerk account and app preferences`
+> **Status:** _None — awaiting Phase 5b (recorder audio + backend pipeline)._
 
 ---
 
@@ -239,13 +193,13 @@ Profile → Sign out → /onboarding
 | Layer | Technology |
 |-------|------------|
 | Framework | Expo SDK 54, Expo Router, React 19 |
-| Styling | NativeWind v5 preview, Tailwind CSS v4 + StyleSheet for Neo-Brutal |
-| Auth | Clerk `@clerk/expo` + `@clerk/backend`; native `@clerk/expo/native` (`UserProfileView`) |
-| State | Zustand (`preferences-store`) + SecureStore persist |
+| Styling | NativeWind v5 preview + StyleSheet (recorder uses StyleSheet) |
+| Auth | Clerk `@clerk/expo` + `@clerk/backend`; native account on `.native.tsx` only |
+| State | Zustand (`preferences-store`); recorder UI uses local hook (no recorder store yet) |
 | Database | **Neo4j AuraDB** — `neo4j-driver`, `lib/neo4j.ts` |
-| Tab UI | Custom tab bar, Reanimated, Lottie |
-| Profile media | `expo-image-picker`, `expo-clipboard` |
-| Images | `expo-image` + `constants/images.ts` |
+| Tab UI | Custom tab bar, Reanimated, Lottie (+ web fallback for mic) |
+| Dev | `expo-dev-client` — use `start:go` for Expo Go |
+| Planned recorder | `expo-audio` (not installed) |
 | Planned voice | Sarvam AI (backend only) |
 | Planned analysis | Gemini (backend only) |
 
@@ -283,20 +237,34 @@ Read top-to-bottom = project timeline.
 
 - Tab shell: Home, Calendar, Recorder, Chat, Profile placeholders
 - `AcharyaTabBar`, Lottie mic + settings gear
-- Validation: lint, tsc, neo4j scripts — pass
 
 ### `0f8a5e4` — docs: record tab navigation commit hash in memory
+
+### `849c971` — feat: home dashboard with Clerk greeting and Neo-Brutal cards
+
+- Home screen per `04-home-dashboard.png`; static `data/home-dashboard.ts`
+- Start session → recorder tab
+
+### `8da15e7` — feat: profile settings hub with Clerk account and app preferences
+
+- Profile hub, `/profile/account`, image picker, prefs, sign out
+- Clerk native account gated for dev build / Expo Go fallback
+
+### `58e1274` — feat: core recorder screen UI with simulated record state (Phase 5)
+
+- Neo-Brutal recorder tab: session card (form, timer, play/stop) + transcript card
+- `hooks/use-recorder-ui.ts`, `data/recorder-options.ts`, `components/recording/*`
+- Clerk/Lottie platform splits for web bundle; `npm run start:go` for Expo Go
 
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Commit Phase 4 + 4b** — home dashboard + profile/settings (working tree)
-2. **Recorder** — `expo-audio`, chunked capture (`prompt_material/05-core-recorder.png`)
+1. **Phase 5b** — `expo-audio`, `store/recorder-store.ts`, chunk upload, POST `/api/sessions`, Sarvam STT → transcript panel
 3. **Calendar** — session history from Aura `(Teacher)-[:TAUGHT]->(Session)`
 4. **Wire Home to Aura** — replace static `data/home-dashboard.ts`
 5. **Notes verification UI** — `prompt_material/09-notes-verify.png`
-6. **Backend** — Sarvam STT, Gemini analysis; extend Aura graph
+6. **Backend** — Gemini analysis; extend Aura graph (transcript, report nodes)
 
 ---
 
@@ -316,12 +284,12 @@ When you finish a meaningful commit:
 
 | File | Screen |
 |------|--------|
-| `prompt_material/04-home-dashboard.png` | Home dashboard — **implemented** (working tree) |
-| `prompt_material/01-design-system.png` | Neo-Brutal palette — used on Home + Profile |
-| `prompt_material/05-core-recorder.png` | Recorder — next |
+| `prompt_material/04-home-dashboard.png` | Home dashboard — **implemented** (`849c971`) |
+| `prompt_material/01-design-system.png` | Neo-Brutal palette — Home, Profile, Recorder |
+| `prompt_material/05-core-recorder.png` | Recorder — **UI implemented** (`58e1274`; audio pipeline next) |
 | `prompt_material/06-teaching-calendar.png` | Calendar |
 | `prompt_material/09-notes-verify.png` | Notes verification |
 
 ---
 
-*Last updated: 2026-06-03 — Phase 4 Home + Phase 4b Profile/Settings (uncommitted). HEAD on `dev` at `0f8a5e4`.*
+*Last updated: 2026-06-03 — Phase 5 Recorder UI committed. HEAD on `dev` at `58e1274`.*
