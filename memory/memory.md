@@ -1,138 +1,352 @@
 # Acharya — Project Memory
 
-Chronological log of what we have built. **Update this file after each meaningful commit** so anyone (or an agent) can see project history at a glance.
+> **Purpose:** Single source of project history + current state for humans and AI agents.  
+> **Spec:** Product/architecture rules live in [`AGENTS.md`](../AGENTS.md) — read that before implementing features.  
+> **Update rule:** After each meaningful commit, update **§4 Current State** and add one entry to **§6 Commit Log**.
 
 ---
 
-## Commits
+## 1. Quick Read (AI + humans)
+
+| Field | Value |
+|-------|--------|
+| **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
+| **Phase** | **Phase 3 — Auth + AuraDB foundation** (built locally; **not yet committed**) |
+| **Previous phases** | Phase 0 bootstrap → Phase 1 design system → Phase 2 onboarding (**committed**) |
+| **Branch** | `dev` (HEAD `00ba6ae`; auth + Neo4j work is **uncommitted** on working tree) |
+| **Runnable in Expo Go?** | Yes — auth UI works with Clerk publishable key; **AuraDB requires full `.env`** (see §3 Environment) |
+| **Last committed feature** | 3-page onboarding carousel (`00ba6ae`) |
+| **Latest uncommitted work** | Clerk auth, Neo4j Aura graph layer, API routes (health, sessions) |
+
+### What works today (if `.env` is configured)
+
+**Auth (needs `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` only)**
+
+- Onboarding at `/onboarding` → Get Started → `/sign-up`
+- Custom Sign Up / Sign In (Neo-Brutal UI, no password fields)
+- Email OTP via Clerk (6-digit modal, auto-submit on last digit)
+- Google / Facebook OAuth via `useSSO` + browser (Expo Go)
+- Signed-in users land on `/` (home placeholder); unsigned redirect to onboarding
+
+**AuraDB (needs full `.env` — Clerk secret + Neo4j Aura credentials)**
+
+- `neo4j-driver` + server-only `lib/neo4j.ts` (enforces `neo4j+s://`)
+- Schema DDL in `neo4j/schema.cypher` (constraints, indexes, vector index)
+- Live API routes: `GET /api/health/neo4j`, `GET|POST /api/sessions`
+- Clerk auth only on client; Aura stores product data (recordings, RAG, reports) — `clerkId` is a reference key, not auth storage
+- CLI: `npm run verify:neo4j`, `npm run neo4j:apply-schema`, `npm run neo4j:test`
+
+**Validation (last run — AuraDB live):**
+
+- `npm run verify:neo4j` — pass (Aura TLS OK)
+- `npm run neo4j:apply-schema` — pass (12 constraints/indexes)
+- `npm run neo4j:test` — pass (MERGE Teacher, TAUGHT Session, cleanup)
+- `GET /api/health/neo4j` — HTTP 200, `connected: true`
+- `npm run lint` / `npx tsc --noEmit` / `npx expo-doctor` — pass
+
+**Aura instance:** Provisioned and verified live. Schema applied via `npm run neo4j:apply-schema` (no cypher-shell required).
+
+### Not built yet
+
+- Home dashboard (`prompt_material/04-home-dashboard.png`)
+- Recorder (`expo-audio`), chunk upload, Sarvam STT pipeline
+- Transcript/report nodes on Aura, calendar UI, chat coach, notes verification (RAG)
+- Tab navigation
+
+---
+
+## 2. Project Phase Map
+
+```
+Phase 0  Bootstrap          ✅ committed   Expo 54 shell, AGENTS.md
+Phase 1  Design system      ✅ committed   theme/, global.css, fonts
+Phase 2  Onboarding         ✅ committed   /onboarding (was /), 3 slides
+Phase 3  Auth + AuraDB      🟡 local only  Clerk, API routes, Neo4j graph scaffold
+Phase 4  Home dashboard     ⬜ planned     prompt_material/04
+Phase 5  Recorder pipeline ⬜ planned     expo-audio, Sarvam, Gemini → Aura nodes
+Phase 6  Core product       ⬜ planned     calendar, chat, notes RAG on Aura
+```
+
+---
+
+## 3. Architecture Snapshot
+
+### Routes (Expo Router)
+
+| Route | File | Who sees it | Notes |
+|-------|------|-------------|-------|
+| `/` | `app/index.tsx` | Signed-in only | Home stub |
+| `/onboarding` | `app/onboarding.tsx` | New users | 3-slide carousel; Get Started → `/sign-up` |
+| `/sign-up` | `app/(auth)/sign-up.tsx` | Signed-out | NAME + EMAIL, social + email OTP |
+| `/sign-in` | `app/(auth)/sign-in.tsx` | Signed-out | EMAIL only, social + email OTP |
+| `(auth)/_layout` | `app/(auth)/_layout.tsx` | — | Redirects signed-in users to `/` |
+
+### Auth flow
+
+```
+App open → / → (unsigned) → /onboarding → Get Started → /sign-up
+  → Continue with Email → 6-digit modal → verify → / (home)
+  → Continue with Google/Facebook → OAuth browser → / (home)
+/sign-in ↔ /sign-up via cross-links
+```
+
+### Key folders
+
+| Path | Role |
+|------|------|
+| `app/` | Routes/screens only (no fat business logic) |
+| `components/auth/` | Auth shell, social buttons, verification modal |
+| `lib/auth-flow.ts` | Clerk email OTP helpers (sign-up + sign-in) |
+| `lib/neo4j.ts` | Aura driver singleton (API routes only; `neo4j+s://` required) |
+| `lib/graph/` | Teacher MERGE, Session create/list (live Cypher) |
+| `lib/api-auth.ts` | Clerk Bearer verification via `@clerk/backend` |
+| `lib/api-client.ts` | Authenticated fetch to `/api/*` |
+| `app/api/` | Health + sessions API routes (Clerk-verified; no auth stored in Aura) |
+| `neo4j/` | `schema.cypher`, `graph-model.md` |
+| `hooks/` | `use-social-auth.ts`, `use-warm-up-browser.ts` |
+| `theme/` | colors, typography, fonts, tokens (Neo-Brutal) |
+| `data/onboarding-slides.ts` | Static onboarding copy + mascots |
+| `constants/images.ts` | Centralized image imports |
+| `prompt_material/` | Design reference PNGs (01–09) |
+| `memory/` | This file |
+
+### Design system (active)
+
+- **Style:** Neo-Brutal — thick black borders, hard offset shadows, cream `#FFF8E7`
+- **Fonts:** Archivo Black (headings), Space Grotesk (body)
+- **Styling:** NativeWind v5 + Tailwind v4 (`global.css`); auth inputs/modals use StyleSheet per AGENTS.md exceptions
+- **Primary CTA:** Yellow `#FFDB33`, `neo-button-primary` utility
+
+### Environment (`.env` — copy from `.env.example`)
+
+| Variable | Required | Where to get it |
+|----------|----------|-----------------|
+| `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | [Clerk Dashboard](https://dashboard.clerk.com) → your app → **API keys** → Publishable key (`pk_test_…` or `pk_live_…`) |
+| `CLERK_SECRET_KEY` | Yes (API routes) | Same Clerk page → **Secret keys** (`sk_test_…`). Server only — never prefix with `EXPO_PUBLIC_` |
+| `NEO4J_URI` | Yes | [Neo4j Aura Console](https://console.neo4j.io) → your instance → **Connect** → URI (`neo4j+s://….databases.neo4j.io`) |
+| `NEO4J_USERNAME` | Yes | Almost always `neo4j` (shown on Connect screen) |
+| `NEO4J_PASSWORD` | Yes | Password you set when creating the Aura instance (or reset in console) |
+| `NEO4J_DATABASE` | Optional | Default `neo4j` |
+
+**After filling `.env`:**
+
+1. Apply graph schema once:  
+   `cypher-shell -a "$NEO4J_URI" -u neo4j -p "$NEO4J_PASSWORD" -f neo4j/schema.cypher`
+2. Verify connectivity: `npm run verify:neo4j`
+3. Restart Expo: `npx expo start --clear`
+4. Sign in → home should show **AuraDB connected — teacher graph node synced**
+
+Clerk Dashboard checklist: Native API on, email verification code enabled, Google/Facebook SSO, redirect URL `acharyaapp://`.
+
+---
+
+## 4. Current State (working tree — uncommitted)
+
+> **Status:** Auth + Neo4j Aura foundation implemented locally; **awaiting git commit**.
+
+### Neo4j Aura — what “installed” means
+
+| Layer | Status |
+|-------|--------|
+| npm package `neo4j-driver` | ✅ Installed |
+| npm package `@clerk/backend` | ✅ Installed (API auth) |
+| Driver + helpers (`lib/neo4j.ts`, serialize, graph repos) | ✅ Done |
+| Schema DDL (`neo4j/schema.cypher`) | ✅ Ready to apply on **your** Aura instance |
+| Graph model docs (`neo4j/graph-model.md`) | ✅ Done |
+| API routes (health, teacher sync, sessions) | ✅ Done |
+| AGENTS.md HACKHAZARDS Aura track rules | ✅ Done |
+| **Your cloud Aura instance** | ✅ Connected (verified `npm run verify:neo4j`) |
+| **Schema applied to Aura** | ✅ 12 DDL statements applied (`npm run neo4j:apply-schema`) |
+| **Integration tests** | ✅ All pass (`npm run neo4j:test`) |
+| **API health route** | ✅ `GET /api/health/neo4j` → 200, live Cypher |
+| **`.env` filled** | Clerk + Neo4j; `CLERK_SECRET_KEY` for authenticated session APIs |
+
+### Best practices followed
+
+- Aura TLS only (`neo4j+s://` enforced in code)
+- Credentials server-only (never `EXPO_PUBLIC_`)
+- Uniqueness constraints before MERGE ingestion
+- Parameterized Cypher (no string concatenation)
+- `executeRead` / `executeWrite` session modes
+- MERGE for idempotent Teacher nodes; `(Teacher)-[:TAUGHT]->(Session)` for calendar history
+- Vector index placeholder for future RAG (`chunk_embedding`, 1536 dims)
+- `app.json` web `output: "server"` so API routes work
+
+### Changed / added since `00ba6ae`
+
+**Routes**
+
+- Moved onboarding from `/` → `app/onboarding.tsx`
+- `app/index.tsx` → auth-gated home placeholder
+- Added `app/(auth)/sign-up.tsx`, `sign-in.tsx`, `_layout.tsx`
+
+**Clerk**
+
+- Packages: `@clerk/expo`, `@clerk/backend`, `expo-secure-store`, `expo-auth-session`
+- `ClerkProvider` + official `tokenCache` from `@clerk/expo/token-cache`
+- Passwordless email OTP in `lib/auth-flow.ts`
+- OAuth via `useSSO` + `AuthSession.makeRedirectUri` in `hooks/use-social-auth.ts`
+- Sign-up includes `nativeID="clerk-captcha"` for Clerk bot protection
+
+**UI**
+
+- `components/auth/auth-screen-shell.tsx` — layout + labeled inputs (rounded 8px)
+- `components/auth/social-auth-button.tsx` — Google logo PNG, email icon, Facebook button
+- `components/auth/verification-code-modal.tsx` — 6-digit number pad, keyboard-aware
+- Assets: `google-logo.png`, `mascot-auth.png` in `constants/images.ts`
+
+**Config**
+
+- `.env.example` with Clerk + Neo4j Aura checklist
+- `app.json` plugins: `@clerk/expo`, `expo-secure-store`; web `output: "server"` for API routes
+
+**Neo4j Aura (primary DB — HACKHAZARDS track)**
+
+- `lib/neo4j.ts` — Aura driver (`neo4j+s://` enforced)
+- `lib/graph/session.ts` — live Cypher (lazy Teacher anchor + TAUGHT)
+- `app/api/health/neo4j+api.ts`, `app/api/sessions+api.ts`
+- `neo4j/schema.cypher`, `neo4j/graph-model.md`
+- `scripts/verify-neo4j.mjs`, `apply-neo4j-schema.mjs`, `test-neo4j-integration.mjs`, `load-env.mjs`
+- `types/graph.ts` — Session + TeacherAnchor types
+
+**Validation (last run):**
+
+- See §1 Quick Read — Aura integration tests pass
+
+---
+
+## 5. Stack (installed)
+
+| Layer | Technology |
+|-------|------------|
+| Framework | Expo SDK 54, Expo Router, React 19 |
+| Styling | NativeWind v5 preview, Tailwind CSS v4 |
+| Auth | Clerk `@clerk/expo` + `@clerk/backend` (email OTP, Google/Facebook OAuth) |
+| Database | **Neo4j AuraDB** (primary) — `neo4j-driver`, `lib/neo4j.ts`, `neo4j/schema.cypher` |
+| Images | `expo-image`; registry in `constants/images.ts` |
+| Planned voice | Sarvam AI (backend only) |
+| Planned analysis | Gemini (backend only) |
+
+---
+
+## 6. Commit Log (oldest → newest)
+
+Read top-to-bottom = project timeline. **Feature commits** are detailed; **docs/meta commits** are one line.
+
+---
 
 ### `7936d2b` — Initial commit
 
-- Created Expo SDK 54 project with `create-expo-app` template
-- Expo Router: tabs layout, explore/home screens, modal route
-- Starter components (`themed-text`, `parallax-scroll-view`, etc.), hooks, `constants/theme.ts`
-- Assets (icons, splash), `app.json`, ESLint, TypeScript strict config
-- Stub `AGENTS.md` pointing at Expo v54 docs; `CLAUDE.md` symlink-style pointer
+- Expo SDK 54 app from `create-expo-app`
+- Expo Router tabs, starter screens, template components
+- Stub `AGENTS.md`, assets, ESLint, TypeScript strict
+
+---
 
 ### `62cc316` — feat 1 : Setup
 
-- Simplified app shell: removed tab navigator and starter screens from `app/`
-- Root layout is a bare `Stack`; home is `app/index.tsx` with placeholder “Acharya App”
-- Removed unused components/hooks/constants from active `app/` tree (template preserved under `app-example/`)
-- Disabled `reset-project` script usage path for day-to-day dev
+- Stripped template tabs; bare `Stack` layout
+- `app/index.tsx` placeholder “Acharya App”
+- Removed unused starter code from active tree
 
-### `014d98d` — docs: add full AGENTS.md product and architecture guidelines
+---
 
-- Replaced Expo stub `AGENTS.md` with full Acharya agent/developer spec (~1000 lines)
-- Documents product vision, core features, tech stack (Expo 54, Sarvam, Gemini, Neon, Clerk)
-- Recorder architecture, API/security rules, Neo-Brutal styling, NativeWind v5 rules, folder layout
+### `014d98d` — docs: add full AGENTS.md
 
-### `c657848` — feat: set up NativeWind v5 with Tailwind CSS v4
+- Full Acharya product + architecture spec (~1000 lines)
+- Recorder pipeline, stack, Neo-Brutal rules, folder conventions
 
-- Packages: `nativewind@5.0.0-preview.4`, `react-native-css@^3.0.7`, `tailwindcss@^4`, `@tailwindcss/postcss`, `postcss`
-- `global.css` — Tailwind v4 layer imports + `nativewind/theme`
-- `postcss.config.mjs` — `@tailwindcss/postcss` plugin
-- `metro.config.js` — `withNativewind(getDefaultConfig(__dirname))`
-- `package.json` — `overrides.lightningcss` pinned to `1.30.1`
-- `nativewind-env.d.ts` — `react-native-css` types; included in `tsconfig.json`
-- `app/_layout.tsx` — imports `../global.css` (top layout for Fast Refresh)
-- `app/index.tsx` — Neo-Brutal cream/black `className` smoke test on home screen
+---
 
-### `49dd7e5` — docs: add project memory log and Acharya-focused README
+### `c657848` — feat: NativeWind v5 + Tailwind v4
 
-- Added `memory/memory.md` (this file) at repo root `memory/` folder
-- README replaced generic Expo template copy with Acharya overview, scripts, layout, NativeWind notes
-- Links to `AGENTS.md` and `memory/memory.md` for onboarding
+- Installed NativeWind v5 preview, `react-native-css`, Tailwind v4, PostCSS
+- `global.css`, `metro.config.js`, `nativewind-env.d.ts`
+- Root layout imports CSS; home className smoke test
 
-### `a3a2b68` — docs: record README and memory commit in project memory log
+---
 
-- Finalized changelog entry for `49dd7e5`; cleared stale “In progress” section
+### `49dd7e5` — docs: memory log + README
 
-### `7fb770d` — docs: log memory maintenance commit in project memory
+- Created `memory/memory.md`
+- Acharya-focused README (scripts, layout, NativeWind)
 
-- Documented `a3a2b68` in the changelog (this file)
+---
 
-### `bffca1f` — docs: sync project memory changelog through latest commit
+### `a3a2b68` · `7fb770d` · `bffca1f` · `99fb9cf` — docs: memory maintenance
 
-- Brought memory log in sync with commits through `7fb770d`
+- Changelog housekeeping only; no product code changes
 
-### `99fb9cf` — docs: use hash-agnostic entry for memory sync commit in changelog
-
-- Minor memory changelog maintenance (hash-agnostic wording for sync commits)
+---
 
 ### `e400509` — feat 4 : Design Theme
 
-**Summary:** Full Neo-Brutal / RetroUI-aligned design system for React Native (NativeWind v5), matching `prompt_material/01-design-system.png`, with a live design-kit demo on the home screen.
-
-**Theme & tokens (`theme/`)**
-
-- `colors.ts` — RetroUI semantic palette (`primary` `#FFDB33`, `border` `#000`, `background` `#fff`, etc.) plus Acharya accent swatches (mint, sky, coral, lime, lavender)
-- `typography.ts` — type scale (H1/H2/Body/Caption); **Archivo Black** for headings, **Space Grotesk** for body
-- `fonts.ts` — `expo-font` asset map (only RetroUI fonts loaded at runtime)
-- `tokens.ts` — borders, spacing, **radius 0** (sharp neo-brutal), hard shadow presets for StyleSheet use
-
-**Global CSS (`global.css`)**
-
-- RetroUI-style `:root` CSS variables and `@theme` Tailwind tokens
-- Hard offset shadows (`shadow-xs` … `shadow-2xl`) — no soft blur
-- Utilities: `font-head`, `font-sans`, `text-head-h1`, `text-body`, `neo-card`, `neo-input`, `neo-button-primary`, semantic colors (`bg-primary`, `text-foreground`, etc.)
-
-**Fonts (`assets/fonts/`)**
-
-- Active: `ArchivoBlack-Regular.ttf`, `SpaceGrotesk-Regular/Medium/Bold.ttf` (from Google Fonts / Fontsource)
-- Legacy in repo (not loaded): Poppins Regular/Medium/SemiBold/Bold — can be deleted later
-
-**App wiring**
-
-- `app/_layout.tsx` — loads fonts via `useFonts`, splash screen until ready, cream/white `background` from theme
-- `app/index.tsx` — scrollable **design system showcase**: palette, typography rows, buttons, inputs, cards, mascot state tiles
-
-**Assets & references**
-
-- `constants/images.ts` — centralized image exports (`moscot-logo`, mascots, UI art: earth, palace, treasure, streak-fire, etc.)
-- `prompt_material/*.png` — design references for onboarding, auth, home, recorder, calendar, community, notes-verify
-- `assets.d.ts` — TypeScript modules for `.png` / `.ttf`
-- `tsconfig.json` — excludes `app-example` from typecheck
-
-**Validation (at time of commit):** `npm run lint` and `npx tsc --noEmit` pass.
+- **Theme:** `theme/colors.ts`, `typography.ts`, `fonts.ts`, `tokens.ts`
+- **Global CSS:** RetroUI tokens, hard shadows, `neo-*` utilities, cream palette
+- **Fonts:** Archivo Black + Space Grotesk via `expo-font`
+- **Home:** Design-system showcase on `/` (later replaced by onboarding)
+- **Assets:** `constants/images.ts`; design refs in `prompt_material/`
 
 ---
 
-## In progress (not yet committed)
+### `00ba6ae` — feat : Onboarding Screen
 
-_None — add the next feature section here after your next commit._
+- **UX:** 3-page horizontal pager (`FlatList`), dots, Next / Get Started CTA
+- **Content:** `data/onboarding-slides.ts` — welcome, record, insights slides
+- **Design:** Matches `prompt_material/02-onboarding-screen.png`
+- **Theme:** `colors.cream` `#FFF8E7`; cream stack background
+- **Note:** Get Started was stubbed (auth added later, uncommitted)
 
 ---
 
-## Stack snapshot (current)
+### _(pending commit)_ — feat: Auth + Neo4j Aura foundation
 
-| Area | Choice |
+- Clerk auth screens, OAuth, email OTP
+- Neo4j Aura driver, schema, session graph repo, API routes
+- See **§4 Current State** — not yet on `dev` remote
+
+---
+
+## 7. Next Work (recommended order)
+
+1. **Fill `.env`** — Clerk + Neo4j Aura (see §3 Environment)
+2. **Apply schema** — `cypher-shell … -f neo4j/schema.cypher`
+3. **Commit** auth + Aura foundation on `dev`
+4. **Home dashboard** — `prompt_material/04-home-dashboard.png`
+3. **Tab shell** — main app navigation after auth
+4. **Recorder** — `expo-audio`, chunked capture, processing states
+5. **Backend** — Sarvam STT, Gemini analysis; extend Aura graph (transcripts, reports, RAG)
+
+---
+
+## 8. Agent Maintenance Instructions
+
+When you finish a meaningful commit:
+
+1. Move **§4 Current State** content into **§6 Commit Log** with the real hash + subject.
+2. Reset **§4** to `_None — awaiting next feature._` or new in-progress notes.
+3. Update **§1 Quick Read** (phase, last commit, what works / not built).
+4. Update **§2 Phase Map** checkmarks.
+5. Update **§3** only if routes, folders, or stack changed.
+6. Keep entries **short bullet points** — not every filename unless it helps the next agent.
+
+**Do not** log pure typo fixes or lockfile-only bumps unless they unblock the team.
+
+---
+
+## 9. Design References
+
+| File | Screen |
 |------|--------|
-| Framework | Expo SDK 54, Expo Router, React 19 |
-| Styling | NativeWind v5 preview + Tailwind CSS v4 |
-| Design system | RetroUI-inspired tokens in `global.css` + `theme/`; Neo-Brutal hard shadows, `--radius: 0` |
-| Fonts (active) | Archivo Black (headings), Space Grotesk (body) via `expo-font` |
-| Images | `constants/images.ts` registry |
-| Auth (planned) | Clerk |
-| Voice (planned) | Sarvam AI (backend only) |
-| Analysis (planned) | Gemini (backend only) |
-| DB (planned) | Neon Postgres + Drizzle |
+| `prompt_material/01-design-system.png` | Design kit / tokens |
+| `prompt_material/02-onboarding-screen.png` | Onboarding ✅ |
+| `prompt_material/03-auth-screen.png` | Sign up / sign in ✅ (local) |
+| `prompt_material/04-home-dashboard.png` | Home — next |
+| `prompt_material/05-core-recorder.png` | Recorder |
+| `prompt_material/06-teaching-calendar.png` | Calendar |
+| `prompt_material/08-teacher-community.png` | Community |
+| `prompt_material/09-notes-verify.png` | Notes verification |
 
 ---
 
-## Context summary (where we are now)
-
-1. **Product** — Acharya teacher app: recorder, transcripts, reports, calendar, chat coach, notes verification (see `AGENTS.md`).
-2. **App shell** — Minimal Expo Router stack; home screen currently doubles as the **design system demo**, not production UI yet.
-3. **Styling** — NativeWind v5 is configured; use semantic classes (`bg-primary`, `font-head`, `neo-card`) and `theme/` tokens for StyleSheet/dynamic cases.
-4. **Next screens** — Reference mocks live in `prompt_material/` (02 onboarding, 03 auth, 04 home, etc.); image assets are committed and registered for upcoming UI work.
-5. **Not in this repo yet** — Clerk auth, recorder (`expo-audio`), API routes, Neon/Drizzle, real tab navigation.
-
----
-
-## How to use this file
-
-1. After each commit, add a new `### \`<hash>\` — <subject>` section above “In progress”.
-2. Remove completed items from **In progress**.
-3. Keep entries short: what changed and why, not every file name unless helpful.
-4. Update **Stack snapshot** and **Context summary** when architecture or conventions change materially.
+*Last updated: Removed Aura sync UI; Clerk = auth only, Aura = product data with clerkId reference. HEAD commit: `00ba6ae`.*

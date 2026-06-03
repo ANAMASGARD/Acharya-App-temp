@@ -180,10 +180,10 @@ Use this stack unless the user explicitly approves a change.
 - TypeScript (strict)
 - Zustand
 - AsyncStorage
-- Clerk (`@clerk/clerk-expo`) for authentication
+- Clerk (`@clerk/expo`) for authentication
 - **Sarvam AI** for speech-to-text, text-to-speech, translation, and conversational voice
 - **Google Gemini** for transcript analysis and structured teaching reports
-- **Neon Postgres + Drizzle ORM** — core backend persistence (sessions, transcripts, reports, RAG)
+- **Neo4j Aura** — core backend graph database (sessions, transcripts, reports, curriculum, RAG embeddings)
 - **`expo-audio`** for recording (with background recording config when implementing the recorder—not deprecated `expo-av`)
 
 Important rules:
@@ -260,7 +260,7 @@ store/
 types/
 assets/
 docs/
-drizzle/          ← schema + migrations (when DB layer is added)
+neo4j/            ← graph schema (constraints, indexes, Cypher DDL) + model docs
 ```
 
 ### `app/` — Routes and Screens Only
@@ -320,7 +320,7 @@ lib/
   sarvam.ts
   api.ts
   gemini.ts
-  neon.ts       ← server-side DB client helpers (API routes only)
+  neo4j.ts      ← server-side Neo4j Aura driver helpers (API routes only)
   cn.ts
 ```
 
@@ -437,7 +437,8 @@ Backend routes may handle:
 - Sarvam translation requests
 - transcript merge logic
 - Gemini analysis
-- report persistence
+- report persistence (**Neo4j Aura** — sessions, transcripts, reports, chunks)
+- graph queries for calendar, RAG, verification
 - token generation if needed
 
 Expo Router API routes use the `+api.ts` suffix (e.g. `app/api/sarvam/stt+api.ts`).
@@ -778,58 +779,163 @@ Do not introduce a database just to hold static content.
 Use Clerk for authentication.
 
 - Do not build custom auth.
-- Use `@clerk/clerk-expo` only.
+- Use `@clerk/expo` only (mobile).
+- Use `@clerk/backend` on API routes — verify `Authorization: Bearer <token>` with `CLERK_SECRET_KEY` (server `.env` only).
 - Protect screens where needed.
 - Send session tokens to API routes via `Authorization: Bearer <token>` when required.
 - Handle Clerk loading state (`useAuth()` may be unset on first render).
+- **Never store authentication in AuraDB** — no passwords, OTP, email login state, or auth profiles in Neo4j. Clerk is the only auth system.
+- Use Clerk’s user ID (`clerkId`) **only as a reference** on product graph nodes (sessions, RAG, reports). Do not “sync login” or show auth/DB sync UI to users.
 
 ---
 
 ## Database Rules
 
-This project uses **Neon Postgres + Drizzle ORM** for backend persistence. A database is a **core architectural requirement** for Acharya—not an optional add-on. Transcripts, reports, RAG results, and session history are persistent product data, not temporary client-only state.
+This project uses **Neo4j AuraDB** as the **primary and only** application database. Graph relationships are **central to how Acharya works**—not optional metadata. Transcripts, reports, RAG, curriculum alignment, and session history are persistent **property-graph** data on Aura.
 
-### What the database stores
+**Do not use Neon Postgres, Drizzle ORM, pgvector, SQLite, or local-only Neo4j** for core product data. Relational/Postgres patterns are obsolete in this repo.
 
-Use the database for core product data such as:
+### HACKHAZARDS ’26 — Neo4j AuraDB track (mandatory)
 
-- session metadata
-- uploaded audio / session references
-- transcripts
-- generated teaching reports
-- notes verification results
-- curriculum books, chunks, and embeddings
-- user-linked history and analytics (e.g. calendar, dashboard)
+Acharya is built for the **Neo4j AuraDB sponsored track**. Every agent and feature must comply:
 
-Use **pgvector** for RAG-related embeddings when implementing notes verification or curriculum retrieval.
+| Requirement | What it means for Acharya |
+|-------------|---------------------------|
+| **AuraDB is the primary database** | All core reads/writes go to **Neo4j Aura** (`neo4j+s://…`). No parallel “main” SQL DB. |
+| **Core interactions through Aura** | Sessions, transcripts, reports, calendar, RAG, notes verification → **live Cypher** on Aura via API routes. |
+| **Graph modeling is central** | Design in `neo4j/graph-model.md`; DDL in `neo4j/schema.cypher`; constraints before MERGE loads. |
+| **Real queries executed** | No hardcoded/mock product data when Aura is configured. Demo `/api/health/neo4j` proves live connectivity. |
 
-Enable in Neon:
+**Judging alignment:** depth of graph model, relationships that **power features**, query complexity, schema + Cypher quality, overall usefulness.
 
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
+**What qualifies**
+
+- AuraDB as the **main data layer**
+- Features **directly powered** by graph traversals (see feature → query map below)
+- **Live queries** with real outputs from Aura (demo or API)
+- Relationships **drive functionality**, not just storage
+
+**What disqualifies — never do this**
+
+- Aura as secondary, optional, or backup DB only
+- Token graph usage (one demo query while rest is mocked)
+- Hardcoded/mocked data **instead of** live Aura queries for core features
+- Local Neo4j (`bolt://`) **without** AuraDB for production/demo data
+- No meaningful role for relationships in the product
+
+### Feature → graph query map (implement against Aura)
+
+| Product feature | Graph role | Example pattern |
+|-----------------|------------|-----------------|
+| Teaching calendar | `(Teacher)-[:TAUGHT]->(Session)` ordered by date | Session history by `clerkId` |
+| Recorder pipeline | Session node + `HAS_TRANSCRIPT` / `HAS_REPORT` | Write path after STT + Gemini |
+| Notes verification (RAG) | Vector index on `Chunk.embedding` + traverse to curriculum | `chunk_embedding` + `IN_CHAPTER` |
+| Dashboard / scores | Aggregate/report nodes linked to sessions | `(Session)-[:HAS_REPORT]->(Report)` |
+| User identity | Clerk only; `clerkId` on graph nodes | Lazy MERGE on first session/RAG write — never sync login to Aura |
+
+If a feature does not use Aura, **stop and redesign**—do not ship it with AsyncStorage or static JSON as the source of truth.
+
+### What the graph stores
+
+Model core product data as nodes and relationships, for example:
+
+- **Users / teachers** (linked to Clerk user id)
+- **Teaching sessions** — metadata, audio references, duration, subject/class
+- **Transcripts** and **reports** (linked to sessions)
+- **Notes verification** results
+- **Curriculum** — books, chapters, chunks (with embeddings on chunk nodes)
+- **Calendar / analytics** — session history, scores, streaks (derived or stored on graph)
+
+Use **Neo4j native vector indexes** on chunk/content nodes for semantic search and RAG—not a separate vector database unless explicitly approved.
+
+### RAG and notes verification
+
+- **Embeddings + similarity search** → Neo4j vector indexes (`CREATE VECTOR INDEX`, `SEARCH` or `db.index.vector.queryNodes()`)
+- **Graph-augmented retrieval** (chunk → curriculum context → verification report) → `neo4j-graphrag` patterns (`HybridCypherRetriever` / `VectorCypherRetriever` on the server)
+- **Curriculum / notes ingestion** → graph load pipelines (CSV, document chunks, MERGE-based idempotent writes)
+
+Design the graph model before writing ingestion code. Inspect schema with `CALL db.schema.visualization()` or MCP `get-schema` when available.
+
+### Environment variables (server only)
+
+Store in `.env` on the server / API host — **never** in the Expo client:
+
+```env
+NEO4J_URI=neo4j+s://xxxx.databases.neo4j.io
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=...
+NEO4J_DATABASE=neo4j
 ```
 
-### What stays off the database
+**Rules**
 
-- Static lists and mappings that rarely change → `data/` (typed TS), e.g. languages, NCERT subject lists
-- UI-only ephemeral state → component state or Zustand without DB
-- Secrets → never in the DB client connection from the mobile app
+- URI **must** use `neo4j+s://` (Aura TLS). `bolt://localhost` is not valid for hackathon/demo data.
+- Provision via [Neo4j Aura Console](https://console.neo4j.io) or `neo4j-aura-provisioning-skill`.
+- After provisioning, apply schema: `cypher-shell … -f neo4j/schema.cypher`
+- Verify: `GET /api/health/neo4j` (live Cypher + counts)
+
+Optional Aura API credentials (CI/admin only, gitignored): `AURA_CLIENT_ID`, `AURA_CLIENT_SECRET`.
+
+Copy from `.env.example`; never commit secrets.
 
 ### Access rules
 
-- Do not store database credentials in the mobile client.
-- All database access must happen through **API routes** or other **server-side** code (`@neondatabase/serverless` in route handlers).
-- The Expo app reads/writes product data via authenticated API calls, not direct Postgres from the device.
+- Do not store Neo4j credentials in the mobile client.
+- All graph reads/writes through **API routes** or server backend using **`neo4j-driver`** — see `lib/neo4j.ts`.
+- Expo app calls authenticated APIs only; **no Bolt driver in the mobile app**.
+- **MERGE** (not bare CREATE) for ingestion; uniqueness constraints in `neo4j/schema.cypher` first.
+- **Parameterized Cypher only** — never string-concatenate user input.
+- **executeRead** / **executeWrite** session modes for read vs write paths.
+- On feature completion: confirm data is readable back from Aura with a real query (not Zustand-only).
+- Product features must not use hardcoded graph data when `NEO4J_URI` is set.
+
+### Repo layout (database)
+
+```txt
+neo4j/
+  schema.cypher      ← constraints, indexes, vector index (apply to Aura)
+  graph-model.md     ← labels, relationships, example queries for judges/demo
+lib/
+  neo4j.ts           ← Aura driver singleton (API routes only)
+app/api/
+  health/neo4j+api.ts ← live connectivity + Cypher health check
+```
 
 ### Backend architecture
 
 ```txt
 Expo app (UI + recorder client)
-    → API routes or separate Node backend (Sarvam, Gemini, auth)
-        → Neon Postgres + Drizzle (persistence)
+    → API routes or separate Node backend (Sarvam, Gemini, Clerk auth)
+        → Neo4j Aura (graph + vector indexes + GraphRAG retrieval)
 ```
 
 Expo Router API routes require **server output** and **deployed server infrastructure** in production—see `Important Hosting Rule` under API Rules.
+
+### Neo4j agent skills (use when implementing DB/RAG work)
+
+Project and global installs include skills from [neo4j-contrib/neo4j-skills](https://github.com/neo4j-contrib/neo4j-skills). **Read the relevant skill before implementing** that area:
+
+| Task | Skill |
+|------|--------|
+| New Aura instance, zero-to-DB onboarding | `neo4j-getting-started-skill` |
+| Create/pause/resize Aura instances | `neo4j-aura-provisioning-skill` |
+| Graph data model design, constraints | `neo4j-modeling-skill` |
+| Cypher queries, indexes, constraints | `neo4j-cypher-skill` |
+| Vector indexes, embedding search | `neo4j-vector-index-skill` |
+| GraphRAG pipelines (retrieval + LLM context) | `neo4j-graphrag-skill` |
+| Import curriculum / document chunks into graph | `neo4j-document-import-skill`, `neo4j-import-skill` |
+| Query performance tuning | `neo4j-query-tuning-skill` |
+| Security, roles, least privilege | `neo4j-security-skill` |
+
+Skills live under `.agents/skills/` and `.claude/skills/` in this repo after install. Prefer **Context7 / skill files** over guessed Cypher or outdated vector syntax.
+
+**Version note:** On Neo4j 2026.01+, prefer the **`SEARCH`** clause for vector queries; on 2025.x use `db.index.vector.queryNodes()` until upgraded.
+
+### What stays off the database
+
+- Static lists and mappings that rarely change → `data/` (typed TS), e.g. languages, NCERT subject lists
+- UI-only ephemeral state → component state or Zustand without DB
+- Secrets → never in client code or committed `.env` files
 
 ---
 
@@ -1001,5 +1107,5 @@ This file adapts the Duolingo-style Expo teaching template for **Acharya**. Incl
 | Stream / GetStream / Vision Agents | Listed in `Do NOT Use` |
 | Lessons, XP, vocabulary, video teacher lessons | Not Acharya features |
 | `lib/stream.ts` | Not used |
-| “No database” constraint | Replaced: Neon + Drizzle is a **core requirement** (`Database Rules`) |
+| “No database” constraint | Replaced: Neo4j Aura is a **core requirement** (`Database Rules`) |
 | Soft shadows / generic playful cards only | Neo-Brutal hard shadows and borders take priority |
