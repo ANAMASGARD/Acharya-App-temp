@@ -1,3 +1,4 @@
+import { resolveDisplayName } from "@/lib/user-display-name";
 import { useAuth, useUser } from "@clerk/expo";
 
 type HomeGreetingResult = {
@@ -5,23 +6,6 @@ type HomeGreetingResult = {
   displayName: string | null;
   greetingText: string;
 };
-
-function resolveDisplayName(
-  firstName: string | null | undefined,
-  fullName: string | null | undefined,
-  username: string | null | undefined,
-): string {
-  if (firstName?.trim()) {
-    return firstName.trim();
-  }
-  if (fullName?.trim()) {
-    return fullName.trim();
-  }
-  if (username?.trim()) {
-    return username.trim();
-  }
-  return "Teacher";
-}
 
 export function useHomeGreeting(): HomeGreetingResult {
   const { isLoaded: isAuthLoaded } = useAuth();

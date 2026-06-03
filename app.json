@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Acharya needs access to your photos so you can set a profile picture.",
+        "NSCameraUsageDescription": "Acharya needs access to your camera so you can take a profile picture."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -41,7 +45,14 @@
       ],
       "@clerk/expo",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Acharya needs access to your photos so you can set a profile picture.",
+          "cameraPermission": "Acharya needs access to your camera so you can take a profile picture."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
