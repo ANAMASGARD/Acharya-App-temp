@@ -3,3 +3,173 @@
 @import "tailwindcss/utilities.css";
 
 @import "nativewind/theme";
+
+/* RetroUI theme — https://retroui.dev */
+:root {
+  --radius: 0;
+
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --primary: #ffdb33;
+  --primary-hover: #ffcc00;
+  --primary-foreground: #000000;
+  --secondary: #000000;
+  --secondary-foreground: #ffffff;
+  --muted: #aeaeae;
+  --muted-foreground: #5a5a5a;
+  --accent: #fae583;
+  --accent-foreground: #000000;
+  --destructive: #e63946;
+  --destructive-foreground: #ffffff;
+  --border: #000000;
+  --input: #ffffff;
+
+  /* Acharya accent swatches (design kit palette) */
+  --acharya-mint: #b8e5e1;
+  --acharya-sky: #a8d5e5;
+  --acharya-coral: #ffb5a7;
+  --acharya-lime: #c5e99b;
+  --acharya-lavender: #e0d4f7;
+  --acharya-cream: #fff8e7;
+
+  --font-head: ArchivoBlack-Regular;
+  --font-sans: SpaceGrotesk-Regular;
+  --font-sans-medium: SpaceGrotesk-Medium;
+  --font-sans-bold: SpaceGrotesk-Bold;
+}
+
+@theme {
+  --font-head: var(--font-head);
+  --font-sans: var(--font-sans);
+  --font-sans-medium: var(--font-sans-medium);
+  --font-sans-bold: var(--font-sans-bold);
+  --radius: var(--radius);
+
+  --shadow-xs: 1px 1px 0 0 var(--border);
+  --shadow-sm: 2px 2px 0 0 var(--border);
+  --shadow: 3px 3px 0 0 var(--border);
+  --shadow-md: 4px 4px 0 0 var(--border);
+  --shadow-lg: 6px 6px 0 0 var(--border);
+  --shadow-xl: 10px 10px 0 1px var(--border);
+  --shadow-2xl: 16px 16px 0 1px var(--border);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+
+  --color-acharya-mint: var(--acharya-mint);
+  --color-acharya-sky: var(--acharya-sky);
+  --color-acharya-coral: var(--acharya-coral);
+  --color-acharya-lime: var(--acharya-lime);
+  --color-acharya-lavender: var(--acharya-lavender);
+  --color-acharya-cream: var(--acharya-cream);
+
+  --spacing-touch: 44px;
+}
+
+/* Typography — Archivo Black (head) + Space Grotesk (sans) */
+@utility font-head {
+  font-family: var(--font-head);
+}
+
+@utility font-sans {
+  font-family: var(--font-sans);
+}
+
+@utility font-sans-medium {
+  font-family: var(--font-sans-medium);
+}
+
+@utility font-sans-bold {
+  font-family: var(--font-sans-bold);
+}
+
+@utility text-head-h1 {
+  font-family: var(--font-head);
+  font-size: 40px;
+  line-height: 48px;
+}
+
+@utility text-head-h2 {
+  font-family: var(--font-head);
+  font-size: 24px;
+  line-height: 32px;
+}
+
+@utility text-body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+@utility text-caption {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* Neo-brutal borders & components */
+@utility border-brutal {
+  border-width: 3px;
+  border-color: var(--color-border);
+}
+
+@utility border-brutal-heavy {
+  border-width: 4px;
+  border-color: var(--color-border);
+}
+
+@utility min-touch {
+  min-width: var(--spacing-touch);
+  min-height: var(--spacing-touch);
+}
+
+@utility neo-card {
+  border-width: 3px;
+  border-color: var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-card);
+  box-shadow: var(--shadow-md);
+}
+
+@utility neo-input {
+  border-width: 3px;
+  border-color: var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-input);
+  min-height: var(--spacing-touch);
+}
+
+@utility neo-button-primary {
+  border-width: 3px;
+  border-color: var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  min-height: var(--spacing-touch);
+}
+
+@utility neo-button-secondary {
+  border-width: 3px;
+  border-color: var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-card);
+  box-shadow: var(--shadow-sm);
+  min-height: var(--spacing-touch);
+}
