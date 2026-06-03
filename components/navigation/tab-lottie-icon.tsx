@@ -1,0 +1,131 @@
+import { colors } from "@/theme/colors";
+import { borderWidths } from "@/theme/tokens";
+import LottieView, { type LottieViewProps } from "lottie-react-native";
+import { useEffect, useRef } from "react";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+} from "react-native-reanimated";
+
+type Props = Readonly<{
+  source: LottieViewProps["source"];
+  focused: boolean;
+  playSignal: number;
+  loopWhenFocused?: boolean;
+  /** Recorder tab: mint badge when idle so the mic reads on the black bar */
+  recorderStyle?: boolean;
+}>;
+
+const POP_SPRING = { damping: 12, stiffness: 320, mass: 0.65 } as const;
+
+export function TabLottieIcon({
+  source,
+  focused,
+  playSignal,
+  loopWhenFocused = false,
+  recorderStyle = false,
+}: Props): React.ReactElement {
+  const animationRef = useRef<LottieView>(null);
+  const iconScale = useSharedValue(1);
+
+  const micTint = colors.secondary;
+  const profileTint = focused ? colors.primaryForeground : colors.mint;
+  const iconColor = recorderStyle ? micTint : profileTint;
+
+  const playAnimation = (): void => {
+    animationRef.current?.reset();
+    animationRef.current?.play();
+  };
+
+  useEffect(() => {
+    if (recorderStyle) {
+      playAnimation();
+      return;
+    }
+
+    if (focused) {
+      playAnimation();
+      return;
+    }
+
+    animationRef.current?.reset();
+    animationRef.current?.pause();
+  }, [focused, recorderStyle]);
+
+  useEffect(() => {
+    if (playSignal > 0) {
+      playAnimation();
+    }
+  }, [playSignal]);
+
+  useEffect(() => {
+    if (focused || playSignal > 0) {
+      iconScale.value = withSequence(
+        withSpring(1.14, POP_SPRING),
+        withSpring(1, POP_SPRING),
+      );
+    }
+  }, [focused, playSignal, iconScale]);
+
+  const animatedWrapStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: iconScale.value }],
+  }));
+
+  const shouldLoop = recorderStyle || (loopWhenFocused && focused);
+
+  const lottie = (
+    <LottieView
+      ref={animationRef}
+      autoPlay={recorderStyle}
+      colorFilters={[{ keypath: "**", color: iconColor }]}
+      loop={shouldLoop}
+      source={source}
+      speed={recorderStyle ? 0.85 : 1}
+      style={recorderStyle ? styles.recorderLottie : styles.lottie}
+    />
+  );
+
+  if (recorderStyle && !focused) {
+    return (
+      <Animated.View style={[styles.wrap, animatedWrapStyle]}>
+        <View style={styles.recorderBadge}>{lottie}</View>
+      </Animated.View>
+    );
+  }
+
+  return (
+    <Animated.View style={[styles.wrap, animatedWrapStyle]}>
+      {lottie}
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lottie: {
+    width: 32,
+    height: 32,
+  },
+  recorderBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.mint,
+    borderWidth: borderWidths.thin,
+    borderColor: colors.mint,
+  },
+  recorderLottie: {
+    width: 28,
+    height: 28,
+  },
+});
