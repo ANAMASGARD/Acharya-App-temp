@@ -1,0 +1,93 @@
+import { images } from "@/constants/images";
+import { colors } from "@/theme/colors";
+import { borderWidths } from "@/theme/tokens";
+import { Image } from "expo-image";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+} from "react-native-reanimated";
+import { useEffect } from "react";
+
+type Props = Readonly<{
+  focused: boolean;
+  playSignal: number;
+  loopWhenFocused?: boolean;
+  recorderStyle?: boolean;
+}>;
+
+const POP_SPRING = { damping: 12, stiffness: 320, mass: 0.65 } as const;
+
+/** Web fallback — static icon instead of lottie-react-native (no dotlottie peer dep). */
+export function TabLottieIcon({
+  focused,
+  playSignal,
+  recorderStyle = false,
+}: Props): React.ReactElement {
+  const iconScale = useSharedValue(1);
+
+  useEffect(() => {
+    if (focused || playSignal > 0) {
+      iconScale.value = withSequence(
+        withSpring(1.14, POP_SPRING),
+        withSpring(1, POP_SPRING),
+      );
+    }
+  }, [focused, playSignal, iconScale]);
+
+  const animatedWrapStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: iconScale.value }],
+  }));
+
+  const icon = (
+    <Image
+      contentFit="contain"
+      source={images.recorderMic}
+      style={recorderStyle ? styles.recorderIcon : styles.icon}
+      tintColor={recorderStyle ? colors.secondary : colors.mint}
+    />
+  );
+
+  if (recorderStyle && !focused) {
+    return (
+      <Animated.View style={[styles.wrap, animatedWrapStyle]}>
+        <View style={styles.recorderBadge}>{icon}</View>
+      </Animated.View>
+    );
+  }
+
+  return (
+    <Animated.View style={[styles.wrap, animatedWrapStyle]}>
+      {icon}
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  icon: {
+    height: 32,
+    width: 32,
+  },
+  recorderBadge: {
+    alignItems: "center",
+    backgroundColor: colors.mint,
+    borderColor: colors.mint,
+    borderRadius: 15,
+    borderWidth: borderWidths.thin,
+    height: 30,
+    justifyContent: "center",
+    width: 30,
+  },
+  recorderIcon: {
+    height: 28,
+    width: 28,
+  },
+  wrap: {
+    alignItems: "center",
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+});

@@ -1,5 +1,5 @@
-import { TabPlaceholderScreen } from "@/components/navigation/tab-placeholder-screen";
+import { RecorderScreen } from "@/components/recording/recorder-screen";
 
 export default function RecorderTabScreen(): React.ReactElement {
-  return <TabPlaceholderScreen title="Recorder" />;
+  return <RecorderScreen />;
 }
