@@ -200,7 +200,7 @@ Read top-to-bottom = project timeline.
 
 ### `27b3233` — docs: fix memory commit hash for language selection
 
-### `17ba551` — feat: custom animated bottom tab navigation with Lottie mic and settings
+### `c5a006f` — feat: custom animated bottom tab navigation with Lottie mic and settings
 
 - **`app/(tabs)/`:** Home, Calendar, Recorder (center), Chat, Profile placeholders
 - **`components/navigation/`:** `AcharyaTabBar` — yellow sliding circle, mint labels, Reanimated press/haptics
@@ -246,4 +246,4 @@ When you finish a meaningful commit:
 
 ---
 
-*Last updated: tab navigation (this commit). HEAD on `dev`.*
+*Last updated: tab navigation (`c5a006f`). HEAD on `dev`.*
