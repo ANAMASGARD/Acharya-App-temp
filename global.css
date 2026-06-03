@@ -32,6 +32,7 @@
   --acharya-coral: #ffb5a7;
   --acharya-lime: #c5e99b;
   --acharya-lavender: #e0d4f7;
+  --acharya-cream: #fff8e7;
 
   --font-head: ArchivoBlack-Regular;
   --font-sans: SpaceGrotesk-Regular;
@@ -77,6 +78,7 @@
   --color-acharya-coral: var(--acharya-coral);
   --color-acharya-lime: var(--acharya-lime);
   --color-acharya-lavender: var(--acharya-lavender);
+  --color-acharya-cream: var(--acharya-cream);
 
   --spacing-touch: 44px;
 }

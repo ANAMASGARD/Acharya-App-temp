@@ -26,6 +26,7 @@ export const accentColors = {
   coral: "#FFB5A7",
   lime: "#C5E99B",
   lavender: "#E0D4F7",
+  cream: "#FFF8E7",
 } as const;
 
 export const colors = {
