@@ -7,8 +7,10 @@ export const PREFERENCES_PERSIST_KEY = "acharya-preferences";
 
 type PreferencesState = {
   selectedLanguageId: string | null;
+  pushNotificationsEnabled: boolean;
   hasHydrated: boolean;
   setSelectedLanguage: (id: string) => void;
+  setPushNotificationsEnabled: (enabled: boolean) => void;
   clearLanguagePreference: () => void;
   setHasHydrated: (value: boolean) => void;
 };
@@ -17,8 +19,11 @@ export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set) => ({
       selectedLanguageId: null,
+      pushNotificationsEnabled: true,
       hasHydrated: false,
       setSelectedLanguage: (id) => set({ selectedLanguageId: id }),
+      setPushNotificationsEnabled: (enabled) =>
+        set({ pushNotificationsEnabled: enabled }),
       clearLanguagePreference: () => set({ selectedLanguageId: null }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
@@ -27,6 +32,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       storage: createJSONStorage(() => preferencesPersistStorage),
       partialize: (state) => ({
         selectedLanguageId: state.selectedLanguageId,
+        pushNotificationsEnabled: state.pushNotificationsEnabled,
       }),
       onRehydrateStorage: () => () => {
         usePreferencesStore.getState().setHasHydrated(true);
