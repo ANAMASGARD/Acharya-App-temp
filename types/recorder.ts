@@ -34,6 +34,7 @@ export type TeachingReport = Readonly<{
   whatWentWrong: string;
   areasToImprove: string;
   topicSpecificFeedback: string;
+  overallScore: number;
 }>;
 
 export const TEACHING_REPORT_JSON_SCHEMA = {
@@ -47,12 +48,14 @@ export const TEACHING_REPORT_JSON_SCHEMA = {
       "whatWentWrong",
       "areasToImprove",
       "topicSpecificFeedback",
+      "overallScore",
     ],
     properties: {
       classroomEnvironment: { type: "string" },
       whatWentWrong: { type: "string" },
       areasToImprove: { type: "string" },
       topicSpecificFeedback: { type: "string" },
+      overallScore: { type: "integer", minimum: 0, maximum: 100 },
     },
   },
 } as const;

@@ -59,7 +59,7 @@ export async function listSessionsByTeacher(
   const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
   const rows = await runReadQuery<SessionRow>(
     `
-    MATCH (t:Teacher { clerkId: $clerkId })-[:TAUGHT]->(s:Session)
+    MATCH (t:Teacher { clerkId: $clerkId })-[:TAUGHT]->(s:Session)-[:HAS_REPORT]->(:Report)
     RETURN s { .* } AS session
     ORDER BY s.recordedAt DESC
     LIMIT $limit

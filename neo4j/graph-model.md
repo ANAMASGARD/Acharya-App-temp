@@ -16,6 +16,7 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `Chapter` | `chapterId` | Chapter within a book |
 | `Chunk` | `chunkId` | Text chunk (+ `embedding` for vector search) |
 | `VerificationReport` | `verificationId` | Notes verification output |
+| `AudioChunk` | `chunkId` | Per-chunk STT text during recording |
 
 ## Relationships (feature-driving)
 
@@ -24,6 +25,7 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `(Teacher)-[:TAUGHT]->(Session)` | Calendar, dashboard, session history |
 | `(Session)-[:HAS_TRANSCRIPT]->(Transcript)` | Report pipeline, replay |
 | `(Session)-[:HAS_REPORT]->(Report)` | Scores, feedback UI |
+| `(Session)-[:HAS_CHUNK]->(AudioChunk)` | Per-chunk STT during recording |
 | `(Chapter)-[:PART_OF]->(CurriculumBook)` | Curriculum navigation |
 | `(Chunk)-[:IN_CHAPTER]->(Chapter)` | Scoped RAG by class/subject |
 | `(Chunk)-[:SIMILAR_TO]->(Chunk)` | Notes vs curriculum alignment (optional, query-derived) |

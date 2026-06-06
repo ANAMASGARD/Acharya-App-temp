@@ -1,4 +1,5 @@
 import { SessionBookmarkButton } from "@/components/calendar/session-bookmark-button";
+import { getScoreBadgeColors } from "@/components/calendar/class-reflection-sections";
 import { NeoButton } from "@/components/ui/neo-button";
 import { NeoCard } from "@/components/ui/neo-card";
 import { formatDuration, formatSessionTime } from "@/lib/calendar/date-utils";
@@ -29,6 +30,9 @@ export function SessionCard({
 }: Props): React.ReactElement {
   const subjectColors = getSubjectBadgeColors(session.subject);
   const classColors = getClassBadgeColors();
+  const score =
+    typeof session.score === "number" ? session.score : undefined;
+  const scoreColors = score !== undefined ? getScoreBadgeColors(score) : null;
 
   return (
     <NeoCard padding={spacing.lg}>
@@ -36,7 +40,19 @@ export function SessionCard({
         <View style={styles.periodBadge}>
           <Text style={styles.periodText}>{formatPeriodLabel(periodNumber)}</Text>
         </View>
-        <SessionBookmarkButton sessionId={session.sessionId} />
+        <View style={styles.topRight}>
+          {score !== undefined && scoreColors ? (
+            <View
+              style={[
+                styles.scoreBadge,
+                { backgroundColor: scoreColors.backgroundColor },
+              ]}
+            >
+              <Text style={styles.scoreText}>{score}</Text>
+            </View>
+          ) : null}
+          <SessionBookmarkButton sessionId={session.sessionId} />
+        </View>
       </View>
 
       <Text style={styles.topic}>{session.topic}</Text>
@@ -136,6 +152,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.3,
     lineHeight: 14,
+  },
+  scoreBadge: {
+    alignItems: "center",
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: borderWidths.thin,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  scoreText: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 13,
+  },
+  topRight: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
   },
   tagBadge: {
     borderColor: colors.border,

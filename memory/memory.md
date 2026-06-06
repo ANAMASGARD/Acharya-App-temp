@@ -11,11 +11,11 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 6 — Teaching Calendar** ✅ **complete (committed on `dev`)** |
-| **Previous phases** | Phase 0–5b → Recorder pipeline (`bbeb082`) |
+| **Phase** | **Phase 6b — Record → Analyze → Calendar** ✅ **complete (`8a512d2` on `dev`)** |
+| **Previous phases** | Phase 6 calendar (`9284a51`), Phase 5b recorder (`bbeb082`) |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — recorder + calendar verified; see **§10 Dev workflow** |
-| **Last committed feature** | Phase 6 teaching calendar — Aura session history, Neo-Brutal UI, bookmarks |
+| **Last committed feature** | OpenRouter class analysis, Aura report persistence, Neo-Brutal Class Reflection UI, env-driven AI config |
 
 ### What works today (if `.env` is configured)
 
@@ -27,59 +27,60 @@
 **Tab navigation (`app/(tabs)/`)**
 
 - Home, Profile — implemented
-- **Calendar tab** — **full teaching calendar** (Phase 6)
-- **Recorder tab** — **full live pipeline** (Phase 5b)
+- **Calendar tab** — **full teaching calendar** with analyzed sessions only
+- **Recorder tab** — **full live pipeline** with Class Reflection after Send
 - Chat — placeholder
 
-**Teaching Calendar (`/(tabs)/calendar` — Phase 6) ✅**
+**Teaching Calendar (`/(tabs)/calendar` — Phase 6 + 6b) ✅**
 
 - Neo-Brutal month picker with session dots on recorded days
-- Date-filtered session cards from live Aura `(Teacher)-[:TAUGHT]->(Session)` query
-- Subject/class color pills, period labels, time + duration, View Details
-- Session detail modal — transcript preview + coach report when available
+- **Only sessions with `HAS_REPORT`** in Aura (no ghost 0-min cards)
+- Date-filtered session cards: subject/class pills, time, duration, **score badge**
+- `useFocusEffect` refresh when tab focused + pull-to-refresh
+- Session detail modal — **yellow header**, colored Class Reflection sections (matches design ref)
 - Empty states: no sessions ever / no sessions on selected day → Go to Recorder
-- **Bookmark toggle** per session (yellow when active, persisted in SecureStore via `calendar-store`)
+- **Bookmark toggle** per session (SecureStore via `calendar-store`)
 
-**Recorder (`/(tabs)/recorder` — Phase 5b) ✅**
+**Recorder (`/(tabs)/recorder` — Phase 5b + 6b) ✅**
 
 End-to-end flow verified in Expo Go (foreground):
 
 1. Teacher fills **topic / subject / class** → taps yellow **Record**
-2. Status shows **Starting** with animated dots
-3. Mic goes live → button turns **red**, timer runs
-4. Teacher taps **Stop** → **Class Transcribe** card shows Sarvam transcript
-5. **Send** → OpenRouter teaching coach report → **Report** panel
+2. Mic goes live → timer runs → **Stop**
+3. **Class Transcribe** card shows Sarvam transcript
+4. **Send** → OpenRouter teaching coach → **Class Reflection** panel (shared UI component)
+5. Session appears on Calendar after analysis (score + report in Aura)
 
-**Sarvam STT (`saaras:v3`) — working**
+**Sarvam STT — working**
 
 - Per-chunk REST STT via `POST /api/sarvam/stt`
-- Auto language detection — Hindi/English/Marathi/etc. in spoken script
-- Client uploads audio as base64 JSON
-- Backend: `lib/sarvam.ts` → Aura `AudioChunk` nodes
+- Model from env: `SARVAM_STT_MODEL` (e.g. `saaras:v3`) via `lib/ai-config.ts`
+- Auto language detection — Hindi/English/Marathi/etc.
 
-**OpenRouter analysis — working**
+**OpenRouter analysis — working (env-driven)**
 
-- Model: `google/gemma-4-26b-a4b-it:free` (env `OPENROUTER_MODEL`)
-- `POST /api/recorder/analyze` → structured coach JSON → Aura Transcript/Report
+- Model from env: `OPENROUTER_MODEL` only — **no hardcoded model IDs in app code**
+- `lib/ai-config.ts` — single source for `OPENROUTER_*` and `SARVAM_*` env
+- `POST /api/recorder/analyze` → truth-seeking coach prompt → structured JSON + `overallScore`
+- Persists `(Session)-[:HAS_TRANSCRIPT]->(Transcript)` and `(Session)-[:HAS_REPORT]->(Report)` + `s.score`
+- Short-transcript guard (min 50 chars); no silent mock when API key missing
+- Free models may return HTTP 429 rate limit from OpenRouter upstream — not a code bug
 
 **AuraDB (needs full `.env`)**
 
-- Session list + detail for calendar via `GET /api/sessions` and `?sessionId=`
-- `neo4j.int()` for LIMIT in Cypher (fixes Aura integer validation)
-- CLI scripts pass: `verify:neo4j`, `neo4j:test`, `neo4j:test-api`
+- Calendar list: `listSessionsByTeacher` filters `HAS_REPORT` only
+- Session detail: `getSessionDetail` with report + transcript preview
+- CLI scripts: `verify:neo4j`, `neo4j:test`, `neo4j:test-api`
 
 **Validation (last run — 2026-06-06):**
 
 - `npm run lint` — pass
 - `npx tsc --noEmit` — pass
-- `npm run verify:neo4j` — pass (37 nodes, 36 rels)
-- `npm run neo4j:test` — pass (8 integration tests)
-- `npm run neo4j:test-api` — pass
 
 ### Not built yet
 
 - Chat Acharya, notes verification (RAG)
-- Live Home data from Aura (dashboard still static)
+- Live Home data from Aura (dashboard static placeholders cleared; streak/activity empty)
 - Background / screen-off recording polish (dev build milestone)
 - True **system audio** capture (requires custom native build)
 
@@ -98,7 +99,8 @@ Phase 4  Home dashboard     ✅ committed   `849c971`
 Phase 4b Profile/Settings   ✅ committed   `8da15e7`
 Phase 5  Recorder UI        ✅ committed   `58e1274`
 Phase 5b Recorder pipeline  ✅ committed   `bbeb082` — Sarvam STT, OpenRouter → Aura
-Phase 6  Teaching calendar  ✅ committed   Aura session history, cards, bookmarks
+Phase 6  Teaching calendar  ✅ committed   `9284a51` — Aura session history, bookmarks
+Phase 6b Analyze + reflect  ✅ this commit OpenRouter coach, score, Class Reflection UI
 Phase 7  Core product       ⬜ planned     chat, notes RAG, Home from Aura
 ```
 
@@ -106,65 +108,63 @@ Phase 7  Core product       ⬜ planned     chat, notes RAG, Home from Aura
 
 ## 3. Architecture Snapshot
 
-### Calendar — code map (Phase 6)
+### Record → Analyze → Calendar flow (Phase 6b)
+
+```
+Recorder tab
+  hooks/use-recorder.ts
+    ├── POST /api/sessions (create Session)
+    ├── POST /api/sarvam/stt (per-chunk STT)
+    └── POST /api/recorder/analyze (Send)
+          ├── lib/ai-config.ts → OPENROUTER_MODEL from .env
+          ├── lib/prompts/teaching-analysis.ts (coach prompt)
+          ├── lib/openrouter.ts (json_schema + one retry)
+          └── lib/graph/recorder.ts → saveTranscriptAndReport + s.score
+
+Calendar tab
+  hooks/use-calendar-sessions.ts (useFocusEffect refresh)
+    └── GET /api/sessions
+          └── lib/graph/session.ts → HAS_REPORT filter only
+```
+
+### Calendar — code map
 
 ```
 Teacher UI
   app/(tabs)/calendar.tsx
     └── components/calendar/calendar-screen.tsx
-          ├── TeachingCalendar (month grid, dots, selection)
-          ├── SessionCard (period, subject/class pills, bookmark, View Details)
-          └── SessionDetailModal (report + transcript preview)
+          ├── TeachingCalendar
+          ├── SessionCard (score badge, bookmark, View Details)
+          ├── SessionDetailModal (yellow header, ClassReflectionSections)
+          └── class-reflection-sections.tsx (shared with recorder report)
 
 Data
   hooks/use-calendar-sessions.ts
-    ├── GET /api/sessions (once on mount, getToken via ref — no refetch loop)
-    └── GET /api/sessions?sessionId=… (detail modal)
-
-State
-  store/calendar-store.ts   bookmarkedSessionIds (SecureStore persist)
-
-Display helpers
-  lib/calendar/date-utils.ts       month matrix, formatters
-  lib/calendar/session-display.ts  subject/class colors + labels from recorder options
-
-Reusable UI
-  components/ui/neo-card.tsx
-  components/ui/neo-button.tsx
+  store/calendar-store.ts (bookmarks)
 
 Backend
-  lib/graph/session.ts
-    ├── listSessionsByTeacher (neo4j.int limit)
-    └── getSessionDetail (Session + HAS_REPORT + HAS_TRANSCRIPT)
+  lib/graph/session.ts — listSessionsByTeacher (HAS_REPORT), getSessionDetail
+  lib/graph/recorder.ts — saveTranscriptAndReport
+  app/api/recorder/analyze+api.ts
   app/api/sessions+api.ts
-    ├── GET list (limit default 100)
-    └── GET ?sessionId= detail
-
-Types
-  types/calendar.ts   CalendarSession, SessionDetail
 ```
 
-### Recorder pipeline — code map (Phase 5b)
+### AI config — code map
 
 ```
-Teacher UI
-  app/(tabs)/recorder.tsx
-    └── components/recording/recorder-screen.tsx
-
-Orchestration: hooks/use-recorder.ts
-State: store/recorder-store.ts
-Audio: lib/recording/*
-Backend STT: app/api/sarvam/stt+api.ts
-Backend analyze: app/api/recorder/analyze+api.ts
-Backend sessions: app/api/sessions+api.ts
+lib/ai-config.ts          ← ONLY place to read model env vars
+  OPENROUTER_MODEL        → lib/openrouter.ts
+  OPENROUTER_API_KEY
+  SARVAM_STT_MODEL        → lib/sarvam.ts
+  SARVAM_API_KEY
 ```
 
 ### Routes (Expo Router)
 
 | Route | File | Notes |
 |-------|------|-------|
-| `/(tabs)/calendar` | `app/(tabs)/calendar.tsx` | Teaching calendar + session cards |
-| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Live recorder pipeline |
+| `/(tabs)/calendar` | `app/(tabs)/calendar.tsx` | Analyzed sessions only |
+| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Send → Class Reflection |
 | `/api/sessions` | `app/api/sessions+api.ts` | List, detail, create, PATCH duration |
 | `/api/sarvam/stt` | `app/api/sarvam/stt+api.ts` | Per-chunk Sarvam STT |
 | `/api/recorder/analyze` | `app/api/recorder/analyze+api.ts` | OpenRouter coach report |
@@ -173,18 +173,21 @@ Backend sessions: app/api/sessions+api.ts
 
 ## 4. Current State (working tree)
 
-> **Status:** Phase 6 calendar committed on `dev`. Working tree clean after push.
+> **Status:** Phase 6b committed on `dev` (`8a512d2`). Working tree clean.
 
-### Phase 6 calendar decisions
+### Phase 6b decisions
 
 | Topic | Implementation |
 |-------|----------------|
-| No refetch loop | `getToken` stored in ref; fetch once on mount |
-| No pull-to-refresh spinner | Removed RefreshControl; silent background fetch |
-| Empty UX | Friendly cards only — never raw API errors for empty days |
-| Neo4j LIMIT | `neo4j.int(safeLimit)` — Aura rejects plain JS numbers |
-| Subject/class labels | Resolved from `data/recorder-options.ts` |
-| Bookmarks | Zustand + SecureStore; yellow filled icon when active |
+| LLM model source | `OPENROUTER_MODEL` in `.env` only — `lib/ai-config.ts` |
+| STT model source | `SARVAM_STT_MODEL` in `.env` only — `lib/ai-config.ts` |
+| No silent OpenRouter mock | Missing key → `auth_config` error surfaced in recorder UI |
+| Calendar ghost sessions | Cypher filter: `(Session)-[:HAS_REPORT]->(:Report)` |
+| Report shape | 4 reflection fields + `overallScore` 0–100 |
+| Score on Session | `s.score` written on analyze; badge on session card |
+| Shared reflection UI | `class-reflection-sections.tsx` — recorder + calendar modal |
+| Calendar refresh | `useFocusEffect` + pull-to-refresh |
+| Transcript guard | Min 50 chars before OpenRouter call (422) |
 
 ---
 
@@ -195,10 +198,10 @@ Backend sessions: app/api/sessions+api.ts
 | Framework | Expo SDK 54, Expo Router, React 19 |
 | Styling | NativeWind v5 + StyleSheet |
 | Auth | Clerk `@clerk/expo` + `@clerk/backend` |
-| State | Zustand — `preferences-store`, `recorder-store`, **`calendar-store`** |
+| State | Zustand — `preferences-store`, `recorder-store`, `calendar-store` |
 | Recording | `expo-audio`, `expo-file-system` |
-| STT | Sarvam `saaras:v3` (server only) |
-| Analysis | OpenRouter — Gemma 4 26B free |
+| STT | Sarvam via `SARVAM_STT_MODEL` env (server only) |
+| Analysis | OpenRouter via `OPENROUTER_MODEL` env (server only) |
 | Database | Neo4j AuraDB — Session, AudioChunk, Transcript, Report |
 
 ---
@@ -213,17 +216,22 @@ Backend sessions: app/api/sessions+api.ts
 
 ### `9284a51` — feat: teaching calendar with Aura session history and bookmarked cards
 
-- Neo-Brutal calendar grid + date-filtered session cards from Aura
-- Subject/class color pills, period labels, session detail modal
-- Bookmark toggle persisted in SecureStore
-- `getSessionDetail` Cypher + `neo4j.int()` LIMIT fix on session list
+### `31d327d` — docs: record Phase 6 calendar commit hash in project memory
+
+### `8a512d2` — feat: wire OpenRouter class analysis to Aura and calendar Class Reflection UI
+
+- Port truth-seeking coach prompt from reference web app + `overallScore`
+- `lib/ai-config.ts` — env-only model config (no hardcoded LLM/STT model IDs)
+- Calendar shows analyzed sessions only; score badge; focus refresh
+- Neo-Brutal Class Reflection sections (shared recorder + modal)
+- Short-transcript guard; persist score on Session node in Aura
 
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Wire Home to Aura** — replace static `data/home-dashboard.ts`
-2. **Chat Acharya** — in-app coach (Sarvam voice + backend LLM)
+1. **Wire Home to Aura** — replace static `data/home-dashboard.ts` with live session stats
+2. **Chat Acharya** — in-app coach (Sarvam voice + backend LLM via `ai-config`)
 3. **Notes verification UI** — RAG on Aura vector index
 4. **Dev build** — background recording + optional system-audio native module
 
@@ -243,8 +251,8 @@ When you finish a meaningful commit:
 
 | File | Screen |
 |------|--------|
-| `prompt_material/06-teaching-calendar.png` | Calendar — **implemented** (Phase 6) |
-| `prompt_material/05-core-recorder.png` | Recorder — implemented (Phase 5b) |
+| `prompt_material/06-teaching-calendar.png` | Calendar + Class Reflection modal — **implemented** |
+| `prompt_material/05-core-recorder.png` | Recorder — implemented |
 | `prompt_material/04-home-dashboard.png` | Home — implemented |
 | `prompt_material/09-notes-verify.png` | Notes verification — planned |
 
@@ -252,19 +260,23 @@ When you finish a meaningful commit:
 
 ## 10. Dev workflow (Expo Go on Android)
 
-### Calendar test checklist
+### Required `.env` (server AI)
 
-1. `npm run start:go -- --clear`
-2. Sign in; open **Calendar** tab
-3. Days with recordings show dots; tap a day to see session cards
-4. Tap bookmark → turns yellow; persists after reload
-5. Tap **View Details** → modal with session info + report if analyzed
-6. Empty day → "No sessions on this day" + Go to Recorder
+```env
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free   # change model here only
+SARVAM_API_KEY=...
+SARVAM_STT_MODEL=saaras:v3
+```
 
-### Recorder test checklist
+Restart after changes: `npx expo start --clear`
 
-1. Record 15–30s on Recorder tab → Stop → Send
-2. Return to Calendar — session appears on today's date
+### Recorder → Calendar test checklist
+
+1. Record 30–60s → Stop → wait for transcript → **Send**
+2. Class Reflection panel appears with 4 colored sections + score
+3. Open **Calendar** tab — session on today with score badge
+4. **View Details** — yellow header modal with full reflection
 
 ### Commands
 
@@ -277,4 +289,4 @@ When you finish a meaningful commit:
 
 ---
 
-*Last updated: 2026-06-06 — Phase 6 teaching calendar complete on `dev`.*
+*Last updated: 2026-06-06 — Phase 6b `8a512d2` on `dev`.*

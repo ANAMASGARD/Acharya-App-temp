@@ -1,9 +1,10 @@
+import { getSarvamConfig } from "@/lib/ai-config";
+import { STT_AUTO_DETECT } from "@/lib/recording/constants";
 import { SarvamAIClient, type SarvamAI } from "sarvamai";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
-import { STT_AUTO_DETECT } from "@/lib/recording/constants";
 
 export type SarvamTranscribeOptions = Readonly<{
   languageCode?: string;
@@ -24,25 +25,15 @@ function shouldAutoDetectLanguage(languageCode?: string): boolean {
   );
 }
 
-function getClient(): SarvamAIClient | null {
-  const apiKey = process.env.SARVAM_API_KEY;
-
-  if (!apiKey) {
-    return null;
-  }
-
-  return new SarvamAIClient({ apiSubscriptionKey: apiKey });
-}
-
 export async function transcribeAudioBuffer(
   buffer: Buffer,
   extension: string,
   options: SarvamTranscribeOptions = {},
 ): Promise<SarvamTranscribeResult> {
-  const client = getClient();
+  const config = getSarvamConfig();
   const autoDetect = shouldAutoDetectLanguage(options.languageCode);
 
-  if (!client) {
+  if (!config) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     return {
       transcript:
@@ -51,6 +42,7 @@ export async function transcribeAudioBuffer(
     };
   }
 
+  const client = new SarvamAIClient({ apiSubscriptionKey: config.apiKey });
   const tempDir = path.join(os.tmpdir(), `sarvam-${randomUUID()}`);
   const inputFilePath = path.join(tempDir, `chunk${extension}`);
 
@@ -60,7 +52,7 @@ export async function transcribeAudioBuffer(
 
     const response = await client.speechToText.transcribe({
       file: fs.createReadStream(inputFilePath),
-      model: "saaras:v3",
+      model: config.sttModel as SarvamAI.SpeechToTextModel,
       mode: options.mode ?? "transcribe",
       ...(autoDetect
         ? {}

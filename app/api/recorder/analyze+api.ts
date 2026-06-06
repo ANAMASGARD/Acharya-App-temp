@@ -5,6 +5,8 @@ import {
 } from "@/lib/openrouter";
 import { saveTranscriptAndReport } from "@/lib/graph/recorder";
 
+const MIN_TRANSCRIPT_LENGTH = 50;
+
 type AnalyzeBody = Readonly<{
   sessionId?: string;
   transcript?: string;
@@ -13,6 +15,7 @@ type AnalyzeBody = Readonly<{
   classLevel?: string;
   durationSeconds?: number;
   isComplete?: boolean;
+  chunkCount?: number;
 }>;
 
 export async function POST(request: Request): Promise<Response> {
@@ -27,7 +30,9 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    if (!body.transcript?.trim()) {
+    const transcript = body.transcript?.trim() ?? "";
+
+    if (!transcript) {
       return Response.json(
         {
           error: {
@@ -39,8 +44,25 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    if (transcript.length < MIN_TRANSCRIPT_LENGTH) {
+      return Response.json(
+        {
+          error: {
+            code: "transcript_too_short",
+            message: "Transcript too short to analyze. Record a longer class.",
+          },
+        },
+        { status: 422 },
+      );
+    }
+
+    const chunkCount =
+      typeof body.chunkCount === "number" && body.chunkCount > 0
+        ? Math.floor(body.chunkCount)
+        : 1;
+
     const report = await analyzeTeachingTranscript({
-      transcript: body.transcript,
+      transcript,
       subject: body.subject ?? "",
       topic: body.topic ?? "",
       classLevel: body.classLevel ?? "",
@@ -49,9 +71,9 @@ export async function POST(request: Request): Promise<Response> {
     await saveTranscriptAndReport(
       userId,
       body.sessionId,
-      body.transcript,
+      transcript,
       body.isComplete ?? true,
-      body.transcript.split(/\s+/).filter(Boolean).length,
+      chunkCount,
       report,
     );
 

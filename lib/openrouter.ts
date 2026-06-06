@@ -1,10 +1,13 @@
 import {
+  getOpenRouterConfig,
+  OpenRouterConfigError,
+} from "@/lib/ai-config";
+import { buildTeachingAnalysisPrompt } from "@/lib/prompts/teaching-analysis";
+import {
   TEACHING_REPORT_JSON_SCHEMA,
   type OpenRouterErrorCode,
   type TeachingReport,
 } from "@/types/recorder";
-
-const DEFAULT_MODEL = "google/gemma-4-26b-a4b-it:free";
 
 type OpenRouterErrorBody = Readonly<{
   error?: {
@@ -76,34 +79,6 @@ export function mapOpenRouterError(
   };
 }
 
-function buildAnalysisPrompt(
-  transcript: string,
-  subject: string,
-  topic: string,
-  classLevel: string,
-): string {
-  return `YOU ARE A TRUTH SEEKING expert teacher coach and education quality analyst for rural Indian schools.
-You have received a full transcript of a classroom session.
-
-Context:
-- Subject: ${subject || "Unknown"}
-- Topic: ${topic || "Unknown"}
-- Class/Grade: ${classLevel || "Unknown"}
-
-TRANSCRIPT:
-"""
-${transcript}
-"""
-
-Analyze this teaching session thoroughly and return JSON with these exact keys:
-classroomEnvironment, whatWentWrong, areasToImprove, topicSpecificFeedback.
-
-Rules:
-- Be a TRUTH SEEKING coach. Don't flatter if they were wrong.
-- Use simple English mixed with Hindi terms where natural.
-- Be specific and quote the transcript when making a point.`;
-}
-
 function isTeachingReport(value: unknown): value is TeachingReport {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -115,7 +90,10 @@ function isTeachingReport(value: unknown): value is TeachingReport {
     typeof record.classroomEnvironment === "string" &&
     typeof record.whatWentWrong === "string" &&
     typeof record.areasToImprove === "string" &&
-    typeof record.topicSpecificFeedback === "string"
+    typeof record.topicSpecificFeedback === "string" &&
+    typeof record.overallScore === "number" &&
+    record.overallScore >= 0 &&
+    record.overallScore <= 100
   );
 }
 
@@ -133,37 +111,42 @@ function parseJsonContent(content: string): unknown {
   return JSON.parse(trimmed);
 }
 
+function mapConfigError(error: OpenRouterConfigError): MappedOpenRouterError {
+  return {
+    code: "auth_config",
+    httpStatus: 500,
+    userMessage: error.message,
+  };
+}
+
 export async function analyzeTeachingTranscript(input: {
   transcript: string;
   subject: string;
   topic: string;
   classLevel: string;
 }): Promise<TeachingReport> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL;
-  const allowFallback = process.env.OPENROUTER_ALLOW_TEXT_FALLBACK === "true";
-  void allowFallback;
+  let config: ReturnType<typeof getOpenRouterConfig>;
 
-  if (!apiKey) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return {
-      classroomEnvironment:
-        "Mock: engaged classroom with active student participation.",
-      whatWentWrong:
-        "Mock: a few oversimplified explanations that could confuse advanced learners.",
-      areasToImprove:
-        "Mock: use more checks for understanding every 5–7 minutes.",
-      topicSpecificFeedback:
-        "Mock: revisit key definitions with concrete local examples.",
-    };
+  try {
+    config = getOpenRouterConfig();
+  } catch (error) {
+    if (error instanceof OpenRouterConfigError) {
+      throw Object.assign(new Error(error.message), {
+        mapped: mapConfigError(error),
+      });
+    }
+
+    throw error;
   }
+
+  const { apiKey, model } = config;
 
   const requestBody = {
     model,
     messages: [
       {
         role: "user",
-        content: buildAnalysisPrompt(
+        content: buildTeachingAnalysisPrompt(
           input.transcript,
           input.subject,
           input.topic,
@@ -246,6 +229,10 @@ export async function analyzeTeachingTranscript(input: {
 }
 
 export function getOpenRouterMappedError(error: unknown): MappedOpenRouterError {
+  if (error instanceof OpenRouterConfigError) {
+    return mapConfigError(error);
+  }
+
   if (
     typeof error === "object" &&
     error !== null &&

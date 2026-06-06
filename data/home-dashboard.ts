@@ -1,24 +1,8 @@
 import type { HomeDashboardContent } from "@/types/home-dashboard";
 
 const HOME_DASHBOARD_CONTENT: HomeDashboardContent = {
-  streakDays: 7,
-  recentActivity: [
-    {
-      id: "activity-1",
-      title: "Recent Activity",
-      subtitle: "Class recording reviewed",
-      timeAgo: "5 hours ago",
-      avatarKind: "letter",
-      avatarLetter: "R",
-    },
-    {
-      id: "activity-2",
-      title: "Veriya Sherna",
-      subtitle: "Notes verification completed",
-      timeAgo: "5 hours ago",
-      avatarKind: "icon",
-    },
-  ],
+  streakDays: 0,
+  recentActivity: [],
   notesGaps: {
     title: "Verified Notes Gaps",
     body:
