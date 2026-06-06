@@ -1,5 +1,9 @@
 import { authErrorResponse, requireAuth } from "@/lib/api-auth";
-import { createSession, listSessionsByTeacher } from "@/lib/graph/session";
+import {
+  createSession,
+  getSessionDetail,
+  listSessionsByTeacher,
+} from "@/lib/graph/session";
 import { updateSessionDuration } from "@/lib/graph/recorder";
 import type { CreateSessionInput } from "@/types/graph";
 
@@ -7,7 +11,23 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
     const url = new URL(request.url);
-    const limit = Number(url.searchParams.get("limit") ?? "20");
+    const sessionId = url.searchParams.get("sessionId");
+
+    if (sessionId?.trim()) {
+      const detail = await getSessionDetail(userId, sessionId.trim());
+
+      if (!detail) {
+        return Response.json({ error: "Session not found" }, { status: 404 });
+      }
+
+      return Response.json({
+        ...detail,
+        message: "Live Cypher query on AuraDB",
+      });
+    }
+
+    const parsedLimit = Number.parseInt(url.searchParams.get("limit") ?? "100", 10);
+    const limit = Number.isFinite(parsedLimit) ? parsedLimit : 100;
     const sessions = await listSessionsByTeacher(userId, limit);
 
     return Response.json({
