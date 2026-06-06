@@ -211,7 +211,7 @@ Backend sessions: app/api/sessions+api.ts
 
 ### `bbeb082` — feat: live recorder pipeline with Sarvam STT and OpenRouter coach reports
 
-### _(this commit)_ — feat: teaching calendar with Aura session history and bookmarked cards
+### `9284a51` — feat: teaching calendar with Aura session history and bookmarked cards
 
 - Neo-Brutal calendar grid + date-filtered session cards from Aura
 - Subject/class color pills, period labels, session detail modal
