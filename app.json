@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Acharya needs access to your photos so you can set a profile picture.",
-        "NSCameraUsageDescription": "Acharya needs access to your camera so you can take a profile picture."
+        "NSCameraUsageDescription": "Acharya needs access to your camera so you can take a profile picture.",
+        "NSMicrophoneUsageDescription": "Acharya records your class so we can transcribe and coach you."
       }
     },
     "android": {
@@ -51,6 +52,13 @@
         {
           "photosPermission": "Acharya needs access to your photos so you can set a profile picture.",
           "cameraPermission": "Acharya needs access to your camera so you can take a profile picture."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Acharya records your class so we can transcribe and coach you.",
+          "enableBackgroundRecording": true
         }
       ]
     ],

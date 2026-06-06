@@ -3,18 +3,42 @@ import { colors } from "@/theme/colors";
 import { borderWidths, radii, shadows, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 type Props = Readonly<{
   transcript?: string;
+  isTranscribing?: boolean;
+  disabled?: boolean;
   onSend?: () => void;
 }>;
 
 export function RecorderTranscriptPanel({
   transcript,
+  isTranscribing = false,
+  disabled = false,
   onSend,
 }: Props): React.ReactElement {
   const hasTranscript = Boolean(transcript?.trim());
+  const sendDisabled = disabled || !hasTranscript || isTranscribing;
+
+  let bodyContent: React.ReactNode;
+
+  if (hasTranscript) {
+    bodyContent = <Text style={styles.body}>{transcript}</Text>;
+  } else if (isTranscribing) {
+    bodyContent = (
+      <View style={styles.loadingRow}>
+        <ActivityIndicator color={colors.foreground} size="small" />
+        <Text style={styles.loadingText}>Transcribing your class…</Text>
+      </View>
+    );
+  } else {
+    bodyContent = (
+      <Text style={[styles.body, styles.placeholder]}>
+        Transcript will appear here after you stop recording.
+      </Text>
+    );
+  }
 
   return (
     <RecorderNeoCard style={styles.card}>
@@ -22,24 +46,25 @@ export function RecorderTranscriptPanel({
         <Text style={styles.headerTitle}>Class Transcribe</Text>
       </View>
 
-      <View style={styles.panel}>
-        <Text style={[styles.body, !hasTranscript && styles.placeholder]}>
-          {hasTranscript
-            ? transcript
-            : "Transcript will appear here…"}
-        </Text>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.panelContent}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={hasTranscript}
+        style={styles.panel}
+      >
+        {bodyContent}
+      </ScrollView>
 
       <Pressable
         accessibilityLabel="Send transcript"
         accessibilityRole="button"
-        accessibilityState={{ disabled: !hasTranscript }}
-        disabled={!hasTranscript}
+        accessibilityState={{ disabled: sendDisabled }}
+        disabled={sendDisabled}
         onPress={onSend}
         style={({ pressed }) => [
           styles.sendButton,
-          !hasTranscript && styles.sendButtonDisabled,
-          pressed && hasTranscript && styles.sendButtonPressed,
+          sendDisabled && styles.sendButtonDisabled,
+          pressed && !sendDisabled && styles.sendButtonPressed,
         ]}
       >
         <MaterialCommunityIcons
@@ -81,8 +106,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
+  loadingRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  loadingText: {
+    color: colors.mutedForeground,
+    fontFamily: fontFamilies.sans,
+    fontSize: 15,
+    fontStyle: "italic",
+  },
   panel: {
     backgroundColor: colors.background,
+    maxHeight: 220,
+  },
+  panelContent: {
     minHeight: 100,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,

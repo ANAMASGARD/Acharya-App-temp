@@ -1,5 +1,6 @@
 import { authErrorResponse, requireAuth } from "@/lib/api-auth";
 import { createSession, listSessionsByTeacher } from "@/lib/graph/session";
+import { updateSessionDuration } from "@/lib/graph/recorder";
 import type { CreateSessionInput } from "@/types/graph";
 
 export async function GET(request: Request): Promise<Response> {
@@ -44,6 +45,43 @@ export async function POST(request: Request): Promise<Response> {
       },
       { status: 201 },
     );
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes("NEO4J") || error.message.includes("Neo4j")) {
+        return Response.json({ error: error.message }, { status: 503 });
+      }
+    }
+
+    return authErrorResponse(error);
+  }
+}
+
+export async function PATCH(request: Request): Promise<Response> {
+  try {
+    const { userId } = await requireAuth(request);
+    const body = (await request.json()) as {
+      sessionId?: string;
+      durationSeconds?: number;
+    };
+
+    if (!body.sessionId?.trim()) {
+      return Response.json({ error: "sessionId is required" }, { status: 400 });
+    }
+
+    if (typeof body.durationSeconds !== "number" || body.durationSeconds < 0) {
+      return Response.json(
+        { error: "durationSeconds must be a non-negative number" },
+        { status: 400 },
+      );
+    }
+
+    await updateSessionDuration(userId, body.sessionId, body.durationSeconds);
+
+    return Response.json({
+      sessionId: body.sessionId,
+      durationSeconds: body.durationSeconds,
+      message: "Session duration updated in AuraDB",
+    });
   } catch (error) {
     if (error instanceof Error) {
       if (error.message.includes("NEO4J") || error.message.includes("Neo4j")) {

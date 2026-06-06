@@ -1,6 +1,8 @@
+import { RecorderReportPanel } from "@/components/recording/recorder-report-panel";
 import { RecorderSessionCard } from "@/components/recording/recorder-session-card";
 import { RecorderTranscriptPanel } from "@/components/recording/recorder-transcript-panel";
-import { useRecorderUi } from "@/hooks/use-recorder-ui";
+import { useRecorder } from "@/hooks/use-recorder";
+import { useRecorderStore } from "@/store/recorder-store";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
@@ -16,13 +18,32 @@ export function RecorderScreen(): React.ReactElement {
     subject,
     classLevel,
     isRecording,
+    isStarting,
+    isTranscribing,
     timerLabel,
     canStartRecording,
+    canSend,
+    statusMessage,
+    mergedTranscript,
+    report,
+    analysisError,
+    allowPartialSend,
     setTopic,
     setSubject,
     setClassLevel,
     toggleRecording,
-  } = useRecorderUi();
+    sendForAnalysis,
+    confirmPartialSend,
+    retryAnalysis,
+  } = useRecorder();
+
+  const { status, transcriptComplete, pendingUploadCount } = useRecorderStore();
+
+  const showPartialPrompt =
+    status === "draining" &&
+    !transcriptComplete &&
+    pendingUploadCount > 0 &&
+    !allowPartialSend;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -37,13 +58,21 @@ export function RecorderScreen(): React.ReactElement {
 
         <View style={styles.sessionGap}>
           <RecorderSessionCard
+            analysisError={analysisError}
             canStartRecording={canStartRecording}
             classLevel={classLevel}
             isRecording={isRecording}
+            isStarting={isStarting}
+            showPartialPrompt={showPartialPrompt}
+            statusMessage={statusMessage}
             subject={subject}
             timerLabel={timerLabel}
             topic={topic}
             onClassLevelChange={setClassLevel}
+            onConfirmPartial={confirmPartialSend}
+            onRetryAnalysis={() => {
+              void retryAnalysis();
+            }}
             onSubjectChange={setSubject}
             onToggleRecording={toggleRecording}
             onTopicChange={setTopic}
@@ -51,8 +80,21 @@ export function RecorderScreen(): React.ReactElement {
         </View>
 
         <View style={styles.transcriptGap}>
-          <RecorderTranscriptPanel />
+          <RecorderTranscriptPanel
+            disabled={!canSend}
+            isTranscribing={isTranscribing}
+            transcript={mergedTranscript}
+            onSend={() => {
+              void sendForAnalysis();
+            }}
+          />
         </View>
+
+        {report ? (
+          <View style={styles.reportGap}>
+            <RecorderReportPanel report={report} />
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -81,6 +123,9 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   transcriptGap: {
+    marginTop: spacing.lg,
+  },
+  reportGap: {
     marginTop: spacing.lg,
   },
 });

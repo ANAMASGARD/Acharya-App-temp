@@ -1,6 +1,6 @@
 import type { TeachingLanguage } from "@/types/language";
 
-const LANGUAGES: TeachingLanguage[] = [
+export const LANGUAGES: TeachingLanguage[] = [
   {
     id: "hi-IN",
     nameEnglish: "Hindi",
