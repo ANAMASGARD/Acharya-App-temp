@@ -25,6 +25,9 @@ FOR (c:Chapter) REQUIRE c.chapterId IS UNIQUE;
 CREATE CONSTRAINT chunk_id IF NOT EXISTS
 FOR (c:Chunk) REQUIRE c.chunkId IS UNIQUE;
 
+CREATE CONSTRAINT audio_chunk_id IF NOT EXISTS
+FOR (ac:AudioChunk) REQUIRE ac.chunkId IS UNIQUE;
+
 CREATE CONSTRAINT verification_report_id IF NOT EXISTS
 FOR (v:VerificationReport) REQUIRE v.verificationId IS UNIQUE;
 

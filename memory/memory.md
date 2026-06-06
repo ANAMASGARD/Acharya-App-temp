@@ -11,92 +11,66 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 5b — Recorder pipeline** (audio, STT, Aura) — next |
+| **Phase** | **Phase 5b — Recorder pipeline** ✅ **complete (uncommitted, ready to commit)** |
 | **Previous phases** | Phase 0–3.6 → Phase 4 Home (`849c971`) → Phase 4b Profile (`8da15e7`) → Phase 5 Recorder UI (`58e1274`) |
 | **Branch** | `dev` |
-| **Runnable in Expo Go?** | Yes — use `npm run start:go` or press `s` after `expo start` (project has `expo-dev-client`, default targets dev build QR) |
-| **Last committed feature** | Core recorder screen UI (`58e1274`) |
-| **Latest work (uncommitted)** | _None — awaiting Phase 5b (expo-audio, backend)._ |
+| **Runnable in Expo Go?** | Yes — foreground recorder + STT verified; see **§10 Dev workflow** |
+| **Last committed feature** | Phase 5 recorder UI only (`58e1274`) — simulated state |
+| **Latest work (uncommitted)** | **Phase 5b** — live `expo-audio`, Sarvam STT (`saaras:v3`), OpenRouter coach, Aura persistence |
 
 ### What works today (if `.env` is configured)
 
 **Auth (needs `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` only)**
 
-- Onboarding at `/onboarding` → Get Started → `/sign-up`
-- Custom Sign Up / Sign In (Neo-Brutal UI, no password fields)
-- Email OTP via Clerk (6-digit modal, auto-submit on last digit)
-- Google / Facebook OAuth via `useSSO` + browser (Expo Go)
-- Signed-in users: **no language saved** → `/language`; after Confirm → `/(tabs)` (Home tab)
-- Language preference persisted via Zustand + **expo-secure-store**
-- Signed-out users → `/onboarding`
+- Onboarding, Sign Up / Sign In, OTP, OAuth — unchanged from prior phases
+- Language gate + SecureStore prefs — unchanged
 
 **Tab navigation (`app/(tabs)/`)**
 
-- Order: **Home | Calendar | Recorder (center) | Chat | Profile**
-- Custom `AcharyaTabBar`: black bar, mint inactive labels, yellow sliding circle for active tab
-- **Recorder:** Lottie mic (`assets/lottie/mic.json`); tab opens **full recorder UI** (not placeholder)
-- **Profile:** Lottie settings gear — full **Profile hub**
-- **Home:** Full dashboard UI
-- **Calendar / Chat:** Still placeholders
+- Home, Profile — implemented; Calendar / Chat — placeholders
+- **Recorder tab** — **full live pipeline** (not simulated)
 
-**Home dashboard (`/(tabs)` / `app/(tabs)/index.tsx`)**
+**Recorder (`/(tabs)/recorder` — Phase 5b) ✅**
 
-- Yellow header: `Namaste, {Clerk firstName}!` via `useUser()` + `hooks/use-home-greeting.ts`
-- Streak line + `streakFire`; static data from `data/home-dashboard.ts`
-- **Acharya logo** (`images.mascotLogo`) 100×100 in yellow header
-- Three Neo-Brutal cards: Recent Activity, Verified Notes Gaps, Start New Class Session → recorder tab
-- Components: `components/home/*`
+End-to-end flow verified in Expo Go (foreground):
 
-**Profile / Settings (`/(tabs)/profile` + `/profile/account`)**
+1. Teacher fills **topic / subject / class** → taps yellow **Record**
+2. Status shows **Starting** with animated dots (`recorder-starting-label.tsx`)
+3. Mic goes live → button turns **red**, timer runs
+4. Teacher taps **Stop** → **Class Transcribe** card shows Sarvam transcript
+5. **Send** → OpenRouter teaching coach report → **Report** panel
 
-- **Hub** (`components/profile/profile-screen.tsx`): avatar + name, at-a-glance, account menu, app settings, help, sign out
-- Change photo: `expo-image-picker` → `user.setProfileImage`
-- **Manage account & security** → `/profile/account`
-- **Clerk account UI:** platform split — `profile-native-account-view.native.tsx` (dev build + `UserProfileView`), `.tsx` / web fallback; **no top-level `@clerk/expo/native` import on web** (fixes Metro web bundle)
-- Expo Go: fallback via `lib/clerk-native-profile.ts`
-- Optional browser: `EXPO_PUBLIC_CLERK_ACCOUNT_PORTAL_URL`
+**Sarvam STT (`saaras:v3`) — working**
 
-**Recorder (`/(tabs)/recorder` — Phase 5 UI only)**
+- Per-chunk REST STT via `POST /api/sarvam/stt` (chunks ≤22s)
+- **Auto language detection** — omit fixed `language_code`; Hindi/English/Marathi/etc. transcribed in spoken script
+- Client uploads audio as **base64 JSON** (reliable in Expo Go vs multipart FormData)
+- Backend: `lib/sarvam.ts` → Sarvam SDK; Aura `AudioChunk` nodes via `lib/graph/recorder.ts`
 
-- **Screen:** `components/recording/recorder-screen.tsx` — title “Record Class Session”
-- **Session card:** Topic / Subject / Class form (`data/recorder-options.ts`), dashed divider, timer + play/stop button + status
-- **Simulated recording:** `hooks/use-recorder-ui.ts` — yellow play → red X, timer `MM:SS`, pulse rings, REC badge; requires all three fields filled to start
-- **Transcript card:** yellow header bar “CLASS TRANSCRIBE” (black text), white transcript area, SEND button (disabled until transcript exists — UI only)
-- **Not built:** `expo-audio`, chunk upload, Sarvam STT, Aura session writes, live transcript stream
+**OpenRouter analysis — working**
 
-**Bundling / dev client notes**
-
-- `npm run start:go` — Expo Go (recommended for quick mobile UI test)
-- `npx expo start` — defaults to **development build** when `expo-dev-client` is installed
-- Web export passes after Clerk native + Lottie web splits (`profile-native-account-view.*`, `tab-lottie-icon.web.tsx`)
+- Model: `google/gemma-4-26b-a4b-it:free` (env `OPENROUTER_MODEL`)
+- `POST /api/recorder/analyze` → structured 4-section coach JSON → Aura `Transcript` + `Report` nodes
 
 **AuraDB (needs full `.env`)**
 
-- `neo4j-driver` + server-only `lib/neo4j.ts`
-- Live API routes: `GET /api/health/neo4j`, `GET|POST /api/sessions`
-- CLI: `npm run verify:neo4j`, `npm run neo4j:apply-schema`, `npm run neo4j:test`, `npm run neo4j:test-api`
+- `AudioChunk` constraint in `neo4j/schema.cypher`
+- Session create `POST /api/sessions`, duration `PATCH /api/sessions`
+- CLI scripts still pass: `verify:neo4j`, `neo4j:test`, `neo4j:test-api`
 
-**Validation (last run — 2026-06-03, recorder UI work):**
+**Validation (last run — 2026-06-06):**
 
 - `npm run lint` — pass
 - `npx tsc --noEmit` — pass
-- `npx expo export --platform web` — pass
-- `npm run verify:neo4j`, `neo4j:test`, `neo4j:test-api` — pass
-
-### Language selection (signed-in)
-
-- Route `/language` — 23 Sarvam Indian languages + English (`data/languages.ts`)
-- Neo-Brutal UI: search, Popular / All sections, Confirm CTA + `earth.png` footer
-- `store/preferences-store.ts` + SecureStore persist; gate via `hooks/use-language-gate.ts`
+- Neo4j integration scripts — pass (prior session)
+- `npx expo export --platform web` — pass (prior session)
 
 ### Not built yet
 
-- Recorder **audio** (`expo-audio`), chunk upload, Sarvam STT pipeline, Gemini reports on Aura
-- Calendar session list, chat coach, notes verification (RAG)
-- Live Home data from Aura (dashboard still uses `data/home-dashboard.ts` static demo)
-- Real screen content for Calendar / Chat tabs (placeholders)
-- FCM push delivery (toggle stores preference only)
-- Biometrics / passkeys on profile
+- Calendar session list from Aura, chat coach, notes verification (RAG)
+- Live Home data from Aura (dashboard still static)
+- Background / screen-off recording polish (dev build milestone)
+- True **system audio** capture (requires custom native build; Expo Go uses mic + `mixWithOthers` for classroom media)
 
 ---
 
@@ -105,14 +79,14 @@
 ```
 Phase 0  Bootstrap          ✅ committed   Expo 54 shell, AGENTS.md
 Phase 1  Design system      ✅ committed   theme/, global.css, fonts
-Phase 2  Onboarding         ✅ committed   /onboarding (was /), 3 slides
-Phase 3  Auth + AuraDB      ✅ committed   `4ac6e6f` Clerk, API routes, Neo4j graph
-Phase 3.5 Language pick     ✅ committed   `/language`, SecureStore prefs, gate
-Phase 3.6 Tab navigation   ✅ committed   `c5a006f` custom bar, Lottie mic + settings
-Phase 4  Home dashboard     ✅ committed   `849c971` — `04-home-dashboard.png`
-Phase 4b Profile/Settings   ✅ committed   `8da15e7` — Neo-Brutal hub + Clerk account
-Phase 5  Recorder UI         ✅ committed   `58e1274` — `05-core-recorder.png` (UI only)
-Phase 5b Recorder pipeline  ⬜ planned     expo-audio, Sarvam, Gemini → Aura nodes
+Phase 2  Onboarding         ✅ committed   /onboarding
+Phase 3  Auth + AuraDB      ✅ committed   Clerk, API routes, Neo4j graph
+Phase 3.5 Language pick     ✅ committed   `/language`, SecureStore prefs
+Phase 3.6 Tab navigation    ✅ committed   custom bar, Lottie mic + settings
+Phase 4  Home dashboard     ✅ committed   `849c971`
+Phase 4b Profile/Settings   ✅ committed   `8da15e7`
+Phase 5  Recorder UI        ✅ committed   `58e1274` — UI shell (was simulated)
+Phase 5b Recorder pipeline  ✅ DONE        expo-audio, Sarvam STT, OpenRouter → Aura
 Phase 6  Core product       ⬜ planned     calendar UI, chat, notes RAG on Aura
 ```
 
@@ -120,71 +94,136 @@ Phase 6  Core product       ⬜ planned     calendar UI, chat, notes RAG on Aura
 
 ## 3. Architecture Snapshot
 
+### Recorder pipeline — code map (Phase 5b)
+
+```
+Teacher UI
+  app/(tabs)/recorder.tsx
+    └── components/recording/recorder-screen.tsx
+          ├── RecorderSessionCard (form, timer, button, status)
+          ├── RecorderTranscriptPanel (Class Transcribe + Send)
+          └── RecorderReportPanel (coach report after Send)
+
+Orchestration
+  hooks/use-recorder.ts
+    ├── start: status "starting" → parallel mic + POST /api/sessions
+    ├── stop: flush final chunk → drain STT queue → status "ready"
+    └── send: POST /api/recorder/analyze
+
+State
+  store/recorder-store.ts
+    └── idle → starting → recording → stopping → draining → ready → analyzing → completed | failed
+
+Audio capture
+  lib/recording/chunk-recorder.ts     22s segment rotation + final flush on stop
+  lib/recording/recorder-prepare.ts   ensureRecorderPrepared() — no double-prepare
+  lib/recording/recording-preset.ts   mono 16 kHz m4a; Android unprocessed mic
+  lib/recording/constants.ts          CHUNK_DURATION_SEC=22, STT_AUTO_DETECT="auto"
+
+Upload + merge (client)
+  lib/recording/chunk-upload-queue.ts   base64 STT upload, retries, file cleanup
+  lib/recording/recorder-api.ts           apiUploadSttChunk, apiAnalyzeTranscript
+  lib/recording/transcript-merge.ts       ordered merge + seam dedup
+  lib/recording/transcript-state.ts       mergedTranscript, pending counts
+  lib/recording/queue-persistence.ts      AsyncStorage queue recovery
+
+Backend — STT
+  app/api/sarvam/stt+api.ts
+    └── lib/sarvam.ts (saaras:v3, auto-detect when language omitted)
+    └── lib/graph/recorder.ts → upsertAudioChunk
+
+Backend — analysis
+  app/api/recorder/analyze+api.ts
+    └── lib/openrouter.ts (strict JSON schema coach report)
+    └── lib/graph/recorder.ts → saveTranscriptAndReport
+
+Backend — sessions
+  app/api/sessions+api.ts   GET list, POST create, PATCH duration
+
+Types
+  types/recorder.ts   RecorderPipelineStatus, chunks, TeachingReport, SttChunkResponse
+```
+
 ### Routes (Expo Router)
 
-| Route | File | Who sees it | Notes |
-|-------|------|-------------|-------|
-| `/` | `app/index.tsx` | All | Auth + language gate → redirects |
-| `/(tabs)` | `app/(tabs)/index.tsx` | Signed-in + language | **Home dashboard** (`HomeScreen`) |
-| `/(tabs)/calendar` | `app/(tabs)/calendar.tsx` | Signed-in | Calendar placeholder |
-| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Signed-in | **Recorder screen** (`RecorderScreen`) |
-| `/(tabs)/chat` | `app/(tabs)/chat.tsx` | Signed-in | Chat placeholder |
-| `/(tabs)/profile` | `app/(tabs)/profile.tsx` | Signed-in | **Profile hub** (`ProfileScreen`) |
-| `/profile/account` | `app/profile/account.tsx` | Signed-in | Clerk account (native / fallback) |
-| `/language` | `app/language.tsx` | Signed-in | Post-login language gate / change from Profile |
-| `/onboarding` | `app/onboarding.tsx` | New users | 3-slide carousel |
-| `/sign-up`, `/sign-in` | `app/(auth)/` | Signed-out | Clerk OTP + OAuth |
+| Route | File | Notes |
+|-------|------|-------|
+| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Live recorder pipeline |
+| `/api/sarvam/stt` | `app/api/sarvam/stt+api.ts` | Per-chunk Sarvam STT + Aura chunk |
+| `/api/recorder/analyze` | `app/api/recorder/analyze+api.ts` | OpenRouter coach + Aura transcript/report |
+| `/api/sessions` | `app/api/sessions+api.ts` | Session CRUD + duration |
 
-### Auth + tab flow
+### Key UI components (`components/recording/`)
 
-```
-App open → / → (unsigned) → /onboarding → sign-up/sign-in
-  → verify → / → /language (first time) → Confirm → /(tabs) Home
-Home “Start session” or center tab → /(tabs)/recorder
-Profile → Manage account → /profile/account
-Profile → Sign out → /onboarding
-```
-
-### Key folders
-
-| Path | Role |
+| File | Role |
 |------|------|
-| `app/(tabs)/` | Tab screens + `_layout.tsx` (custom tab bar) |
-| `app/profile/` | Stack: `account.tsx` (Clerk account management) |
-| `components/home/` | Home dashboard UI |
-| `components/profile/` | Profile hub, account (`.native.tsx` / `.tsx` split) |
-| `components/recording/` | Recorder screen, form, timer, button, transcript card, neo cards |
-| `components/navigation/` | `AcharyaTabBar`, Lottie icons (`tab-lottie-icon.web.tsx` for web) |
-| `data/home-dashboard.ts` | Static dashboard copy |
-| `data/recorder-options.ts` | Subject + class level picklists |
-| `hooks/use-recorder-ui.ts` | Simulated recorder state + timer |
-| `hooks/use-home-greeting.ts`, `hooks/use-profile-*.ts` | Home + profile helpers |
-| `lib/clerk-native-profile.ts`, `lib/user-display-name.ts` | Clerk / display helpers |
-| `store/preferences-store.ts` | Language + push notifications pref |
-| `theme/` | Neo-Brutal colors, typography, tokens |
-| `memory/` | This file |
+| `recorder-screen.tsx` | Composes session card, transcript, report |
+| `recorder-session-card.tsx` | Form + timer + `RecordingButton` + status |
+| `recorder-starting-label.tsx` | Animated "Starting..." dots while mic/API init |
+| `recorder-status-label.tsx` | Status text, errors, partial-send prompt |
+| `recorder-transcript-panel.tsx` | Class Transcribe card + Send |
+| `recorder-report-panel.tsx` | 4-section coach report after analysis |
+| `recording-button.tsx` | Yellow play → red stop |
 
-### Design system (active)
+### Removed / replaced
 
-- **Style:** Neo-Brutal — thick black borders, hard shadows, cream `#FFF8E7`
-- **Recorder:** Two stacked neo cards — session (form + timer + **88–104px** yellow play button) + transcript (yellow header band, white body, SEND)
-- **Tab bar:** Black, mint inactive, yellow active pill; center mic Lottie
+| Old | New |
+|-----|-----|
+| `hooks/use-recorder-ui.ts` (simulated timer) | **deleted** → `hooks/use-recorder.ts` |
 
-### Environment (`.env` — copy from `.env.example`)
+### Env vars (`.env.example` updated)
 
-| Variable | Required | Where to get it |
-|----------|----------|-----------------|
-| `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | Clerk Dashboard → API keys |
-| `CLERK_SECRET_KEY` | Yes (API routes) | Clerk Dashboard → Secret keys |
-| `EXPO_PUBLIC_CLERK_ACCOUNT_PORTAL_URL` | Optional | Clerk Account Portal URL |
-| `NEO4J_URI` | Yes | Aura Console → Connect (`neo4j+s://…`) |
-| `NEO4J_USERNAME` / `NEO4J_PASSWORD` / `NEO4J_DATABASE` | Yes | Aura instance |
+```
+SARVAM_API_KEY=
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
+```
+
+Plus existing Clerk + Neo4j Aura vars.
 
 ---
 
 ## 4. Current State (working tree)
 
-> **Status:** _None — awaiting Phase 5b (recorder audio + backend pipeline)._
+> **Status:** Phase 5b complete — **ready to commit and open PR**. User will push manually.
+
+### Uncommitted changes (Phase 5b)
+
+**New files**
+
+- `hooks/use-recorder.ts`
+- `store/recorder-store.ts`
+- `types/recorder.ts`
+- `lib/sarvam.ts`, `lib/openrouter.ts`, `lib/graph/recorder.ts`
+- `lib/recording/*` (chunk-recorder, upload queue, merge, prepare, api, constants, preset, persistence)
+- `app/api/sarvam/stt+api.ts`
+- `app/api/recorder/analyze+api.ts`
+- `components/recording/recorder-report-panel.tsx`
+- `components/recording/recorder-starting-label.tsx`
+
+**Modified**
+
+- `app.json` — expo-audio plugin, mic permission, background recording
+- `package.json` — `expo-audio`, `expo-file-system`, `@openrouter/sdk`, `sarvamai`
+- `app/api/sessions+api.ts` — PATCH duration
+- `neo4j/schema.cypher` — `AudioChunk` uniqueness
+- Recorder UI components wired to real store
+- `.env.example`, `lib/api-client.ts`, `data/languages.ts`
+
+**Deleted**
+
+- `hooks/use-recorder-ui.ts`
+
+### Phase 5b UX / reliability decisions
+
+| Topic | Implementation |
+|-------|----------------|
+| Fast perceived start | `starting` status + dots; mic starts parallel with Aura session POST |
+| No double-prepare crash | `lib/recording/recorder-prepare.ts` — `ensureRecorderPrepared()` |
+| Short recordings (<22s) | Final segment flushed on **Stop** in `chunk-recorder.ts` |
+| STT language | `STT_AUTO_DETECT` — Sarvam auto-detect 23 languages |
+| Classroom audio | `mixWithOthers` + Android `unprocessed` mic (not internal system tap) |
+| Chunk upload | Base64 JSON to `/api/sarvam/stt` |
 
 ---
 
@@ -193,78 +232,40 @@ Profile → Sign out → /onboarding
 | Layer | Technology |
 |-------|------------|
 | Framework | Expo SDK 54, Expo Router, React 19 |
-| Styling | NativeWind v5 preview + StyleSheet (recorder uses StyleSheet) |
-| Auth | Clerk `@clerk/expo` + `@clerk/backend`; native account on `.native.tsx` only |
-| State | Zustand (`preferences-store`); recorder UI uses local hook (no recorder store yet) |
-| Database | **Neo4j AuraDB** — `neo4j-driver`, `lib/neo4j.ts` |
-| Tab UI | Custom tab bar, Reanimated, Lottie (+ web fallback for mic) |
-| Dev | `expo-dev-client` — use `start:go` for Expo Go |
-| Planned recorder | `expo-audio` (not installed) |
-| Planned voice | Sarvam AI (backend only) |
-| Planned analysis | Gemini (backend only) |
+| Styling | NativeWind v5 + StyleSheet (recorder) |
+| Auth | Clerk `@clerk/expo` + `@clerk/backend` |
+| State | Zustand — `preferences-store`, **`recorder-store`** |
+| Recording | **`expo-audio`**, **`expo-file-system`** (legacy API for base64 read) |
+| STT | **Sarvam `saaras:v3`** via `sarvamai` SDK (server only) |
+| Analysis | **OpenRouter** `@openrouter/sdk` — Gemma 4 26B free |
+| Database | **Neo4j AuraDB** — Session, AudioChunk, Transcript, Report |
 
 ---
 
 ## 6. Commit Log (oldest → newest)
 
-Read top-to-bottom = project timeline.
-
----
-
-### `7936d2b` — Initial commit
-
-- Expo SDK 54 app from `create-expo-app`
-
-### `62cc316` — feat 1 : Setup
-
-### `014d98d` — docs: add full AGENTS.md
-
-### `c657848` — feat: NativeWind v5 + Tailwind v4
-
-### `49dd7e5` — docs: memory log + README
-
-### `e400509` — feat 4 : Design Theme
-
-### `00ba6ae` — feat : Onboarding Screen
-
-### `4ac6e6f` — feat: Clerk auth and Neo4j Aura foundation
-
-### `cab10a0` — feat: post-login language selection with SecureStore persistence
-
-### `27b3233` — docs: fix memory commit hash for language selection
-
-### `c5a006f` — feat: custom animated bottom tab navigation with Lottie mic and settings
-
-- Tab shell: Home, Calendar, Recorder, Chat, Profile placeholders
-- `AcharyaTabBar`, Lottie mic + settings gear
-
-### `0f8a5e4` — docs: record tab navigation commit hash in memory
-
-### `849c971` — feat: home dashboard with Clerk greeting and Neo-Brutal cards
-
-- Home screen per `04-home-dashboard.png`; static `data/home-dashboard.ts`
-- Start session → recorder tab
-
-### `8da15e7` — feat: profile settings hub with Clerk account and app preferences
-
-- Profile hub, `/profile/account`, image picker, prefs, sign out
-- Clerk native account gated for dev build / Expo Go fallback
+_(Prior commits unchanged — see git log. Next entry after user commits Phase 5b.)_
 
 ### `58e1274` — feat: core recorder screen UI with simulated record state (Phase 5)
 
-- Neo-Brutal recorder tab: session card (form, timer, play/stop) + transcript card
-- `hooks/use-recorder-ui.ts`, `data/recorder-options.ts`, `components/recording/*`
-- Clerk/Lottie platform splits for web bundle; `npm run start:go` for Expo Go
+### `2608fe9` — docs: mark Phase 5 recorder UI committed in project memory
+
+### _(pending)_ — feat: Phase 5b live recorder pipeline with Sarvam STT and OpenRouter coach
+
+- Replace simulated `use-recorder-ui` with `expo-audio` + Zustand pipeline
+- Sarvam `saaras:v3` per-chunk STT with auto language detection
+- OpenRouter structured teaching report → Aura Transcript/Report
+- Starting UX, Class Transcribe card, report panel
 
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Phase 5b** — `expo-audio`, `store/recorder-store.ts`, chunk upload, POST `/api/sessions`, Sarvam STT → transcript panel
-3. **Calendar** — session history from Aura `(Teacher)-[:TAUGHT]->(Session)`
-4. **Wire Home to Aura** — replace static `data/home-dashboard.ts`
-5. **Notes verification UI** — `prompt_material/09-notes-verify.png`
-6. **Backend** — Gemini analysis; extend Aura graph (transcript, report nodes)
+1. **Calendar** — `(Teacher)-[:TAUGHT]->(Session)` history from Aura
+2. **Wire Home to Aura** — replace static `data/home-dashboard.ts`
+3. **Chat Acharya** — in-app coach (Sarvam voice + backend LLM)
+4. **Notes verification UI** — RAG on Aura vector index
+5. **Dev build** — background recording + optional system-audio native module
 
 ---
 
@@ -272,11 +273,9 @@ Read top-to-bottom = project timeline.
 
 When you finish a meaningful commit:
 
-1. Move **§4 Current State** content into **§6 Commit Log** with the real hash + subject.
-2. Reset **§4** to `_None — awaiting next feature._` or new in-progress notes.
-3. Update **§1 Quick Read** (phase, last commit, what works / not built).
-4. Update **§2 Phase Map** checkmarks.
-5. Update **§3** only if routes, folders, or stack changed.
+1. Move **§4 Current State** into **§6 Commit Log** with hash + subject.
+2. Reset **§4** or note new in-progress work.
+3. Update **§1 Quick Read**, **§2 Phase Map**, **§3** if needed.
 
 ---
 
@@ -284,12 +283,39 @@ When you finish a meaningful commit:
 
 | File | Screen |
 |------|--------|
-| `prompt_material/04-home-dashboard.png` | Home dashboard — **implemented** (`849c971`) |
-| `prompt_material/01-design-system.png` | Neo-Brutal palette — Home, Profile, Recorder |
-| `prompt_material/05-core-recorder.png` | Recorder — **UI implemented** (`58e1274`; audio pipeline next) |
-| `prompt_material/06-teaching-calendar.png` | Calendar |
-| `prompt_material/09-notes-verify.png` | Notes verification |
+| `prompt_material/05-core-recorder.png` | Recorder — **UI + live pipeline** (Phase 5b) |
+| `prompt_material/04-home-dashboard.png` | Home — implemented |
+| `prompt_material/06-teaching-calendar.png` | Calendar — planned |
+| `prompt_material/09-notes-verify.png` | Notes verification — planned |
 
 ---
 
-*Last updated: 2026-06-03 — Phase 5 Recorder UI committed. HEAD on `dev` at `58e1274`.*
+## 10. Dev workflow (Expo Go on Android)
+
+### Recorder test checklist
+
+1. `npm run start:go -- --clear`
+2. Sign in; fill topic, subject, class on Recorder tab
+3. Record 15–30s speech (try Hindi or English) → Stop
+4. Confirm **Class Transcribe** shows text in spoken language
+5. Tap **Send** → coach report appears below
+6. Ensure `.env` has `SARVAM_API_KEY`, `OPENROUTER_API_KEY`, Neo4j + Clerk vars
+
+### Commands
+
+| Scenario | Command |
+|----------|---------|
+| Expo Go | `npm run start:go -- --clear` |
+| Lint + types | `npm run lint && npx tsc --noEmit` |
+| Aura health | `npm run verify:neo4j` |
+| Apply schema | `npm run neo4j:apply-schema` |
+
+### Known non-fatal warnings
+
+- Clerk codegen warnings in Expo Go
+- `expo-file-system/legacy` deprecation notices (chunk upload queue)
+- `expo-doctor`: missing `expo-asset` peer for `expo-audio` (optional install)
+
+---
+
+*Last updated: 2026-06-06 — Phase 5b recorder pipeline complete (Sarvam STT verified). Uncommitted on `dev`.*

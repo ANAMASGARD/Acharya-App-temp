@@ -23,7 +23,7 @@ export function getApiBaseUrl(): string {
 }
 
 type ApiFetchOptions = Readonly<{
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   token: string | null;
   body?: unknown;
 }>;

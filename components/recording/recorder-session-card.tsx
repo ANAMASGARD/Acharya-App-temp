@@ -18,8 +18,14 @@ type Props = Readonly<{
   subject: string;
   classLevel: string;
   isRecording: boolean;
+  isStarting?: boolean;
   timerLabel: string;
   canStartRecording: boolean;
+  statusMessage: string;
+  analysisError?: string | null;
+  showPartialPrompt?: boolean;
+  onConfirmPartial?: () => void;
+  onRetryAnalysis?: () => void;
   onTopicChange: (value: string) => void;
   onSubjectChange: (value: string) => void;
   onClassLevelChange: (value: string) => void;
@@ -31,8 +37,14 @@ export function RecorderSessionCard({
   subject,
   classLevel,
   isRecording,
+  isStarting = false,
   timerLabel,
   canStartRecording,
+  statusMessage,
+  analysisError,
+  showPartialPrompt,
+  onConfirmPartial,
+  onRetryAnalysis,
   onTopicChange,
   onSubjectChange,
   onClassLevelChange,
@@ -57,7 +69,7 @@ export function RecorderSessionCard({
           <RecorderTimerDisplay isRecording={isRecording} label={timerLabel} />
           <View style={styles.buttonStage}>
             <RecordingButton
-              disabled={!canStartRecording}
+              disabled={!canStartRecording || isStarting}
               isRecording={isRecording}
               onPress={onToggleRecording}
             />
@@ -66,8 +78,12 @@ export function RecorderSessionCard({
 
         <View style={styles.statusWrap}>
           <RecorderStatusLabel
-            canStartRecording={canStartRecording}
-            isRecording={isRecording}
+            analysisError={analysisError}
+            isStarting={isStarting}
+            message={statusMessage}
+            showPartialPrompt={showPartialPrompt}
+            onConfirmPartial={onConfirmPartial}
+            onRetryAnalysis={onRetryAnalysis}
           />
         </View>
       </View>
