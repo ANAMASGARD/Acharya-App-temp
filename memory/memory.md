@@ -11,7 +11,7 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 7 — Chat Acharya** ✅ **committed** (`9d2aca5`) |
+| **Phase** | **Phase 7 — Chat Acharya** ✅ **committed** (`4e652bc`) |
 | **Previous phases** | Phase 6b analyze + calendar (`d692ea9`) |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — recorder + calendar + chat verified; see **§10 Dev workflow** |
@@ -126,7 +126,7 @@ Phase 5  Recorder UI        ✅ committed   `58e1274`
 Phase 5b Recorder pipeline  ✅ committed   `bbeb082` — Sarvam STT, OpenRouter → Aura
 Phase 6  Teaching calendar  ✅ committed   `9284a51` — Aura session history, bookmarks
 Phase 6b Analyze + reflect  ✅ committed   `d692ea9` — OpenRouter coach, score, Class Reflection UI
-Phase 7  Chat Acharya       ✅ committed   `9d2aca5` — NDJSON coach, voice STT/TTS, Aura chat graph, drawer UI
+Phase 7  Chat Acharya       ✅ committed   `4e652bc` — NDJSON coach, voice STT/TTS, Aura chat graph, drawer UI
 Phase 7b Core product       ⬜ planned     notes RAG, Home from Aura, voice agent
 ```
 
@@ -172,7 +172,7 @@ Calendar tab → GET /api/sessions (HAS_REPORT filter)
 
 ## 4. Current State
 
-> **Status:** Phase 7 Chat Acharya committed (`9d2aca5`). Next: voice agent, notes RAG.
+> **Status:** Phase 7 Chat Acharya committed (`4e652bc`). Next: voice agent, notes RAG.
 
 ### Phase 7 decisions
 
@@ -219,7 +219,7 @@ Calendar tab → GET /api/sessions (HAS_REPORT filter)
 
 ### `d692ea9` — feat: wire OpenRouter class analysis to Aura and calendar Class Reflection UI
 
-### `9d2aca5` — feat: Chat Acharya with Aura graph, voice input, and Neo-Brutal coach UI
+### `4e652bc` — feat: Chat Acharya with Aura graph, voice input, and Neo-Brutal coach UI
 
 - NDJSON chat completions + OpenRouter streaming coach
 - Aura ChatConversation / ChatMessage graph + history list/delete
@@ -293,4 +293,4 @@ Restart after changes: `npx expo start --clear`
 
 ---
 
-*Last updated: 2026-06-06 — Phase 7 Chat Acharya committed (`9d2aca5`).*
+*Last updated: 2026-06-06 — Phase 7 Chat Acharya committed (`4e652bc`).*
