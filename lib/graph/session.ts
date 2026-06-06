@@ -1,6 +1,9 @@
 import { runReadQuery, runWriteQuery } from "@/lib/neo4j";
+import neo4j from "neo4j-driver";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
+import type { SessionDetail } from "@/types/calendar";
 import type { CreateSessionInput, SessionNode } from "@/types/graph";
+import type { TeachingReport } from "@/types/recorder";
 
 type SessionRow = Readonly<{
   session: Record<string, unknown>;
@@ -53,6 +56,7 @@ export async function listSessionsByTeacher(
   clerkId: string,
   limit = 20,
 ): Promise<SessionNode[]> {
+  const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
   const rows = await runReadQuery<SessionRow>(
     `
     MATCH (t:Teacher { clerkId: $clerkId })-[:TAUGHT]->(s:Session)
@@ -60,8 +64,67 @@ export async function listSessionsByTeacher(
     ORDER BY s.recordedAt DESC
     LIMIT $limit
     `,
-    { clerkId, limit },
+    { clerkId, limit: neo4j.int(safeLimit) },
   );
 
   return rows.map((row) => serializeNeo4jValue(row.session) as SessionNode);
+}
+
+type SessionDetailRow = Readonly<{
+  session: Record<string, unknown>;
+  report: Record<string, unknown> | null;
+  transcript: Record<string, unknown> | null;
+}>;
+
+function parseReportJson(value: unknown): TeachingReport | null {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as TeachingReport;
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return value as TeachingReport;
+  }
+
+  return null;
+}
+
+export async function getSessionDetail(
+  clerkId: string,
+  sessionId: string,
+): Promise<SessionDetail | null> {
+  const [row] = await runReadQuery<SessionDetailRow>(
+    `
+    MATCH (t:Teacher { clerkId: $clerkId })-[:TAUGHT]->(s:Session { sessionId: $sessionId })
+    OPTIONAL MATCH (s)-[:HAS_REPORT]->(rp:Report)
+    OPTIONAL MATCH (s)-[:HAS_TRANSCRIPT]->(tr:Transcript)
+    RETURN s { .* } AS session, rp { .* } AS report, tr { .* } AS transcript
+    `,
+    { clerkId, sessionId },
+  );
+
+  if (!row) {
+    return null;
+  }
+
+  const session = serializeNeo4jValue(row.session) as SessionNode;
+  const reportNode = row.report
+    ? (serializeNeo4jValue(row.report) as { json?: unknown })
+    : null;
+  const transcriptNode = row.transcript
+    ? (serializeNeo4jValue(row.transcript) as { text?: string })
+    : null;
+
+  const transcriptText = transcriptNode?.text?.trim() ?? "";
+  const transcriptPreview =
+    transcriptText.length > 0 ? transcriptText.slice(0, 280) : null;
+
+  return {
+    session,
+    report: reportNode ? parseReportJson(reportNode.json) : null,
+    transcriptPreview,
+  };
 }

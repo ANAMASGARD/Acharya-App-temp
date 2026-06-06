@@ -1,5 +1,5 @@
-import { TabPlaceholderScreen } from "@/components/navigation/tab-placeholder-screen";
+import { CalendarScreen } from "@/components/calendar/calendar-screen";
 
 export default function CalendarTabScreen(): React.ReactElement {
-  return <TabPlaceholderScreen title="Calendar" />;
+  return <CalendarScreen />;
 }
