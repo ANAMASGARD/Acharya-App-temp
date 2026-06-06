@@ -8,7 +8,8 @@ import { spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const TAB_BAR_CLEARANCE = 100;
@@ -22,6 +23,8 @@ export function CalendarScreen(): React.ReactElement {
     sessionsForSelectedDate,
     markedDateKeys,
     hasFetched,
+    error,
+    refresh,
     detailSessionId,
     sessionDetail,
     isDetailLoading,
@@ -29,6 +32,17 @@ export function CalendarScreen(): React.ReactElement {
     openSessionDetail,
     closeSessionDetail,
   } = useCalendarSessions();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async (): Promise<void> => {
+    setIsRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refresh]);
 
   const goToRecorder = (): void => {
     router.push("/(tabs)/recorder");
@@ -40,9 +54,24 @@ export function CalendarScreen(): React.ReactElement {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            onRefresh={() => {
+              void handleRefresh();
+            }}
+            refreshing={isRefreshing}
+            tintColor={colors.foreground}
+          />
+        }
         showsVerticalScrollIndicator={false}
         style={styles.scroll}
       >
+        {error ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+
         <TeachingCalendar
           markedDateKeys={markedDateKeys}
           selectedDate={selectedDate}
@@ -138,6 +167,21 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.head,
     fontSize: 18,
     lineHeight: 24,
+    textAlign: "center",
+  },
+  errorBanner: {
+    backgroundColor: colors.coral,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 3,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+  },
+  errorText: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 14,
+    lineHeight: 20,
     textAlign: "center",
   },
   safeArea: {

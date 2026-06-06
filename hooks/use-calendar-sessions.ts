@@ -3,7 +3,8 @@ import { isSameDay, toDateKey } from "@/lib/calendar/date-utils";
 import type { CalendarSession, SessionDetail } from "@/types/calendar";
 import type { SessionNode } from "@/types/graph";
 import { useAuth } from "@clerk/expo";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 type SessionsResponse = Readonly<{
   sessions: SessionNode[];
@@ -74,9 +75,11 @@ export function useCalendarSessions(): UseCalendarSessionsResult {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const markedDateKeys = useMemo(() => {
     const keys = new Set<string>();

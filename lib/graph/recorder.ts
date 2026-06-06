@@ -95,7 +95,9 @@ export async function saveTranscriptAndReport(
     MERGE (s)-[:HAS_REPORT]->(rp:Report { reportId: $reportId })
     ON CREATE SET rp.createdAt = datetime()
     SET rp.json = $reportJson,
-        rp.updatedAt = datetime()
+        rp.updatedAt = datetime(),
+        s.score = $overallScore,
+        s.updatedAt = datetime()
     `,
     {
       clerkId,
@@ -106,6 +108,7 @@ export async function saveTranscriptAndReport(
       isComplete,
       chunkCount,
       reportJson: JSON.stringify(report),
+      overallScore: report.overallScore,
     },
   );
 

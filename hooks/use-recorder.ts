@@ -386,6 +386,7 @@ export function useRecorder(): UseRecorderResult {
       classLevel: state.classLevel.trim(),
       durationSeconds: state.elapsedSeconds,
       isComplete: state.transcriptComplete,
+      chunkCount: state.chunks.length,
     };
 
     const response: AnalyzeResponse = await apiAnalyzeTranscript(token, payload);
