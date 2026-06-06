@@ -28,6 +28,7 @@ export default function TabsLayout(): React.ReactElement | null {
 
   return (
     <Tabs
+      initialRouteName="recorder"
       screenOptions={{
         headerShown: false,
       }}

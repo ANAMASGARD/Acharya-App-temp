@@ -31,6 +31,12 @@ FOR (ac:AudioChunk) REQUIRE ac.chunkId IS UNIQUE;
 CREATE CONSTRAINT verification_report_id IF NOT EXISTS
 FOR (v:VerificationReport) REQUIRE v.verificationId IS UNIQUE;
 
+CREATE CONSTRAINT chat_conversation_id IF NOT EXISTS
+FOR (c:ChatConversation) REQUIRE c.conversationId IS UNIQUE;
+
+CREATE CONSTRAINT chat_message_id IF NOT EXISTS
+FOR (m:ChatMessage) REQUIRE m.messageId IS UNIQUE;
+
 // --- Lookup indexes ---
 
 CREATE INDEX session_recorded_at IF NOT EXISTS
@@ -41,6 +47,9 @@ FOR (s:Session) ON (s.teacherClerkId);
 
 CREATE INDEX chunk_source IF NOT EXISTS
 FOR (c:Chunk) ON (c.source);
+
+CREATE INDEX chat_message_created IF NOT EXISTS
+FOR (m:ChatMessage) ON (m.createdAt);
 
 // --- Vector index for RAG (adjust dimensions to match embedder) ---
 

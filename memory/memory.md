@@ -11,11 +11,11 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 6b — Record → Analyze → Calendar** ✅ **complete (`8a512d2` on `dev`)** |
-| **Previous phases** | Phase 6 calendar (`9284a51`), Phase 5b recorder (`bbeb082`) |
+| **Phase** | **Phase 7 — Chat Acharya** ✅ **committed** (`9d2aca5`) |
+| **Previous phases** | Phase 6b analyze + calendar (`d692ea9`) |
 | **Branch** | `dev` |
-| **Runnable in Expo Go?** | Yes — recorder + calendar verified; see **§10 Dev workflow** |
-| **Last committed feature** | OpenRouter class analysis, Aura report persistence, Neo-Brutal Class Reflection UI, env-driven AI config |
+| **Runnable in Expo Go?** | Yes — recorder + calendar + chat verified; see **§10 Dev workflow** |
+| **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) — cold start, login, language pick |
 
 ### What works today (if `.env` is configured)
 
@@ -27,9 +27,10 @@
 **Tab navigation (`app/(tabs)/`)**
 
 - Home, Profile — implemented
-- **Calendar tab** — **full teaching calendar** with analyzed sessions only
-- **Recorder tab** — **full live pipeline** with Class Reflection after Send
-- Chat — placeholder
+- **Recorder tab** — default entry point on app start / restart / post-login
+- **Calendar tab** — full teaching calendar with analyzed sessions only
+- **Recorder tab** — full live pipeline with Class Reflection after Send
+- **Chat tab** — **Chat Acharya** minimalist Neo-Brutal coach UI
 
 **Teaching Calendar (`/(tabs)/calendar` — Phase 6 + 6b) ✅**
 
@@ -37,8 +38,8 @@
 - **Only sessions with `HAS_REPORT`** in Aura (no ghost 0-min cards)
 - Date-filtered session cards: subject/class pills, time, duration, **score badge**
 - `useFocusEffect` refresh when tab focused + pull-to-refresh
-- Session detail modal — **yellow header**, colored Class Reflection sections (matches design ref)
-- Empty states: no sessions ever / no sessions on selected day → Go to Recorder
+- Session detail modal — **yellow header**, colored Class Reflection sections
+- Empty states → Go to Recorder
 - **Bookmark toggle** per session (SecureStore via `calendar-store`)
 
 **Recorder (`/(tabs)/recorder` — Phase 5b + 6b) ✅**
@@ -48,28 +49,26 @@ End-to-end flow verified in Expo Go (foreground):
 1. Teacher fills **topic / subject / class** → taps yellow **Record**
 2. Mic goes live → timer runs → **Stop**
 3. **Class Transcribe** card shows Sarvam transcript
-4. **Send** → OpenRouter teaching coach → **Class Reflection** panel (shared UI component)
+4. **Send** → OpenRouter teaching coach → **Class Reflection** panel
 5. Session appears on Calendar after analysis (score + report in Aura)
 
 **Sarvam STT — working**
 
-- Per-chunk REST STT via `POST /api/sarvam/stt`
-- Model from env: `SARVAM_STT_MODEL` (e.g. `saaras:v3`) via `lib/ai-config.ts`
-- Auto language detection — Hindi/English/Marathi/etc.
+- Per-chunk REST STT via `POST /api/sarvam/stt` (recorder)
+- Chat dictation via `POST /api/chat/stt` (no Session/AudioChunk)
+- Model from env: `SARVAM_STT_MODEL` via `lib/ai-config.ts`
 
 **OpenRouter analysis — working (env-driven)**
 
-- Model from env: `OPENROUTER_MODEL` only — **no hardcoded model IDs in app code**
-- `lib/ai-config.ts` — single source for `OPENROUTER_*` and `SARVAM_*` env
-- `POST /api/recorder/analyze` → truth-seeking coach prompt → structured JSON + `overallScore`
-- Persists `(Session)-[:HAS_TRANSCRIPT]->(Transcript)` and `(Session)-[:HAS_REPORT]->(Report)` + `s.score`
-- Short-transcript guard (min 50 chars); no silent mock when API key missing
-- Free models may return HTTP 429 rate limit from OpenRouter upstream — not a code bug
+- Model from env: `OPENROUTER_MODEL` only — **no hardcoded model IDs**
+- Recorder: `POST /api/recorder/analyze` → structured JSON + `overallScore`
+- Chat: `POST /api/chat/completions` → NDJSON streaming coach (buffered server response)
 
 **AuraDB (needs full `.env`)**
 
-- Calendar list: `listSessionsByTeacher` filters `HAS_REPORT` only
-- Session detail: `getSessionDetail` with report + transcript preview
+- Calendar: `listSessionsByTeacher` filters `HAS_REPORT` only
+- Chat graph: `(Teacher)-[:HAS_CONVERSATION]->(ChatConversation)-[:HAS_MESSAGE]->(ChatMessage)`
+- Chat history list + delete via `DELETE /api/chat/conversations?conversationId=…`
 - CLI scripts: `verify:neo4j`, `neo4j:test`, `neo4j:test-api`
 
 **Validation (last run — 2026-06-06):**
@@ -77,12 +76,38 @@ End-to-end flow verified in Expo Go (foreground):
 - `npm run lint` — pass
 - `npx tsc --noEmit` — pass
 
+### Chat Acharya (`/(tabs)/chat` — Phase 7) ✅
+
+**Backend**
+
+- `lib/prompts/chat-coach.ts` — teacher coach prompt (distinct from recorder analyze)
+- `lib/graph/chat.ts` — create/list/load/delete conversations + messages; `contextSnapshot` once per conversation
+- `lib/openrouter.ts` — `streamChatCompletion()` for OpenRouter SSE
+- `lib/chat-stream.ts` — client NDJSON parser
+- API routes:
+  - `POST /api/chat/completions` — NDJSON proxy + Aura persist (buffered body for expo-server)
+  - `GET/POST/DELETE /api/chat/conversations` — load, list history, new chat, delete
+  - `POST /api/chat/stt` — chat dictation (no session graph)
+  - `POST /api/sarvam/tts` — Bulbul TTS (throws on missing Sarvam key)
+- `neo4j/schema.cypher` — ChatConversation / ChatMessage constraints + indexes
+
+**Frontend**
+
+- Minimalist Neo-Brutal UI: yellow header (large mascot logo + red Upload pill → `/notes/upload`)
+- **Chat history drawer** — spring slide-in from left, full-bleed top, `expo-blur` backdrop with fade in/out
+- Neo-Brutal history cards (yellow, delete button, demo fallback when list empty)
+- **Composer** — docked above tab bar; Android keyboard lift (composer stays above keyboard)
+- Toolbar layout: **Voice** (left, animated wave bars) | **Mic** (STT dictation) | **Send** (pink circle, arrow-up)
+- STT on **mic** (record → transcribe → auto-send); **Voice** reserved for future Sarvam voice agent
+- `store/chat-store.ts` persists `conversationId` only; messages from Aura on focus
+- `hooks/use-chat.ts`, `use-chat-history.ts`, `use-voice-input.ts`, `use-voice-output.ts`
+
 ### Not built yet
 
-- Chat Acharya, notes verification (RAG)
-- Live Home data from Aura (dashboard static placeholders cleared; streak/activity empty)
+- Notes verification (RAG) — `/notes/upload` is placeholder
+- Live Home data from Aura
+- Chat **Voice** button → Sarvam conversational voice agent
 - Background / screen-off recording polish (dev build milestone)
-- True **system audio** capture (requires custom native build)
 
 ---
 
@@ -100,94 +125,67 @@ Phase 4b Profile/Settings   ✅ committed   `8da15e7`
 Phase 5  Recorder UI        ✅ committed   `58e1274`
 Phase 5b Recorder pipeline  ✅ committed   `bbeb082` — Sarvam STT, OpenRouter → Aura
 Phase 6  Teaching calendar  ✅ committed   `9284a51` — Aura session history, bookmarks
-Phase 6b Analyze + reflect  ✅ this commit OpenRouter coach, score, Class Reflection UI
-Phase 7  Core product       ⬜ planned     chat, notes RAG, Home from Aura
+Phase 6b Analyze + reflect  ✅ committed   `d692ea9` — OpenRouter coach, score, Class Reflection UI
+Phase 7  Chat Acharya       ✅ committed   `9d2aca5` — NDJSON coach, voice STT/TTS, Aura chat graph, drawer UI
+Phase 7b Core product       ⬜ planned     notes RAG, Home from Aura, voice agent
 ```
 
 ---
 
 ## 3. Architecture Snapshot
 
+### Chat flow (Phase 7)
+
+```
+Chat tab
+  hooks/use-chat.ts
+    ├── GET /api/chat/conversations (load / list / new)
+    ├── POST /api/chat/completions (NDJSON stream)
+    └── hooks/use-voice-input.ts → POST /api/chat/stt
+
+Aura
+  lib/graph/chat.ts
+    (Teacher)-[:HAS_CONVERSATION]->(ChatConversation)-[:HAS_MESSAGE]->(ChatMessage)
+```
+
 ### Record → Analyze → Calendar flow (Phase 6b)
 
 ```
-Recorder tab
-  hooks/use-recorder.ts
-    ├── POST /api/sessions (create Session)
-    ├── POST /api/sarvam/stt (per-chunk STT)
-    └── POST /api/recorder/analyze (Send)
-          ├── lib/ai-config.ts → OPENROUTER_MODEL from .env
-          ├── lib/prompts/teaching-analysis.ts (coach prompt)
-          ├── lib/openrouter.ts (json_schema + one retry)
-          └── lib/graph/recorder.ts → saveTranscriptAndReport + s.score
-
-Calendar tab
-  hooks/use-calendar-sessions.ts (useFocusEffect refresh)
-    └── GET /api/sessions
-          └── lib/graph/session.ts → HAS_REPORT filter only
-```
-
-### Calendar — code map
-
-```
-Teacher UI
-  app/(tabs)/calendar.tsx
-    └── components/calendar/calendar-screen.tsx
-          ├── TeachingCalendar
-          ├── SessionCard (score badge, bookmark, View Details)
-          ├── SessionDetailModal (yellow header, ClassReflectionSections)
-          └── class-reflection-sections.tsx (shared with recorder report)
-
-Data
-  hooks/use-calendar-sessions.ts
-  store/calendar-store.ts (bookmarks)
-
-Backend
-  lib/graph/session.ts — listSessionsByTeacher (HAS_REPORT), getSessionDetail
-  lib/graph/recorder.ts — saveTranscriptAndReport
-  app/api/recorder/analyze+api.ts
-  app/api/sessions+api.ts
-```
-
-### AI config — code map
-
-```
-lib/ai-config.ts          ← ONLY place to read model env vars
-  OPENROUTER_MODEL        → lib/openrouter.ts
-  OPENROUTER_API_KEY
-  SARVAM_STT_MODEL        → lib/sarvam.ts
-  SARVAM_API_KEY
+Recorder tab → POST /api/sarvam/stt → POST /api/recorder/analyze → Aura
+Calendar tab → GET /api/sessions (HAS_REPORT filter)
 ```
 
 ### Routes (Expo Router)
 
 | Route | File | Notes |
 |-------|------|-------|
+| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | **Default tab** on launch |
+| `/(tabs)/chat` | `app/(tabs)/chat.tsx` | Chat Acharya coach |
 | `/(tabs)/calendar` | `app/(tabs)/calendar.tsx` | Analyzed sessions only |
-| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Send → Class Reflection |
-| `/api/sessions` | `app/api/sessions+api.ts` | List, detail, create, PATCH duration |
-| `/api/sarvam/stt` | `app/api/sarvam/stt+api.ts` | Per-chunk Sarvam STT |
-| `/api/recorder/analyze` | `app/api/recorder/analyze+api.ts` | OpenRouter coach report |
+| `/api/chat/completions` | `app/api/chat/completions+api.ts` | NDJSON streaming coach |
+| `/api/chat/conversations` | `app/api/chat/conversations+api.ts` | Load / list / create / delete |
+| `/api/chat/stt` | `app/api/chat/stt+api.ts` | Chat voice STT |
+| `/api/sarvam/tts` | `app/api/sarvam/tts+api.ts` | Bulbul read-aloud |
+| `/notes/upload` | `app/notes/upload.tsx` | Placeholder for notes verification |
 
 ---
 
-## 4. Current State (working tree)
+## 4. Current State
 
-> **Status:** Phase 6b committed on `dev` (`8a512d2`). Working tree clean.
+> **Status:** Phase 7 Chat Acharya committed (`9d2aca5`). Next: voice agent, notes RAG.
 
-### Phase 6b decisions
+### Phase 7 decisions
 
 | Topic | Implementation |
 |-------|----------------|
-| LLM model source | `OPENROUTER_MODEL` in `.env` only — `lib/ai-config.ts` |
-| STT model source | `SARVAM_STT_MODEL` in `.env` only — `lib/ai-config.ts` |
-| No silent OpenRouter mock | Missing key → `auth_config` error surfaced in recorder UI |
-| Calendar ghost sessions | Cypher filter: `(Session)-[:HAS_REPORT]->(:Report)` |
-| Report shape | 4 reflection fields + `overallScore` 0–100 |
-| Score on Session | `s.score` written on analyze; badge on session card |
-| Shared reflection UI | `class-reflection-sections.tsx` — recorder + calendar modal |
-| Calendar refresh | `useFocusEffect` + pull-to-refresh |
-| Transcript guard | Min 50 chars before OpenRouter call (422) |
+| Streaming | NDJSON default; server buffers lines (expo-server pipe fix) |
+| Chat STT | Separate route — no Session/AudioChunk reuse |
+| Persist client-side | `conversationId` only in AsyncStorage |
+| Voice UX split | Mic = dictation STT; Voice pill = future agent |
+| History drawer | Reanimated spring + `expo-blur` backdrop; full-bleed top |
+| Default tab | `initialRouteName="recorder"` + redirects to `/(tabs)/recorder` |
+| Android keyboard | Keyboard listeners lift composer above tab bar + keyboard |
+| `softwareKeyboardLayoutMode` | `"resize"` in `app.json` for Android |
 
 ---
 
@@ -198,11 +196,12 @@ lib/ai-config.ts          ← ONLY place to read model env vars
 | Framework | Expo SDK 54, Expo Router, React 19 |
 | Styling | NativeWind v5 + StyleSheet |
 | Auth | Clerk `@clerk/expo` + `@clerk/backend` |
-| State | Zustand — `preferences-store`, `recorder-store`, `calendar-store` |
+| State | Zustand — preferences, recorder, calendar, **chat** stores |
 | Recording | `expo-audio`, `expo-file-system` |
-| STT | Sarvam via `SARVAM_STT_MODEL` env (server only) |
-| Analysis | OpenRouter via `OPENROUTER_MODEL` env (server only) |
-| Database | Neo4j AuraDB — Session, AudioChunk, Transcript, Report |
+| Blur | `expo-blur` (chat history drawer backdrop) |
+| STT / TTS | Sarvam via env (server only) |
+| Analysis / Chat | OpenRouter via env (server only) |
+| Database | Neo4j AuraDB — Session, Report, **ChatConversation**, **ChatMessage** |
 
 ---
 
@@ -218,22 +217,25 @@ lib/ai-config.ts          ← ONLY place to read model env vars
 
 ### `31d327d` — docs: record Phase 6 calendar commit hash in project memory
 
-### `8a512d2` — feat: wire OpenRouter class analysis to Aura and calendar Class Reflection UI
+### `d692ea9` — feat: wire OpenRouter class analysis to Aura and calendar Class Reflection UI
 
-- Port truth-seeking coach prompt from reference web app + `overallScore`
-- `lib/ai-config.ts` — env-only model config (no hardcoded LLM/STT model IDs)
-- Calendar shows analyzed sessions only; score badge; focus refresh
-- Neo-Brutal Class Reflection sections (shared recorder + modal)
-- Short-transcript guard; persist score on Session node in Aura
+### `9d2aca5` — feat: Chat Acharya with Aura graph, voice input, and Neo-Brutal coach UI
+
+- NDJSON chat completions + OpenRouter streaming coach
+- Aura ChatConversation / ChatMessage graph + history list/delete
+- Sarvam chat STT + TTS API routes
+- Minimalist chat UI: drawer with blur, keyboard-aware composer, mic/send/voice toolbar
+- Recorder as default tab on app launch
+- `expo-blur` for history drawer backdrop
 
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Wire Home to Aura** — replace static `data/home-dashboard.ts` with live session stats
-2. **Chat Acharya** — in-app coach (Sarvam voice + backend LLM via `ai-config`)
-3. **Notes verification UI** — RAG on Aura vector index
-4. **Dev build** — background recording + optional system-audio native module
+1. **Chat voice agent** — wire Voice pill to Sarvam conversational agent
+2. **Notes verification UI** — RAG on Aura vector index (`/notes/upload`)
+3. **Wire Home to Aura** — live session stats from graph
+4. **Dev build** — background recording polish
 
 ---
 
@@ -264,19 +266,21 @@ When you finish a meaningful commit:
 
 ```env
 OPENROUTER_API_KEY=...
-OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free   # change model here only
+OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free
 SARVAM_API_KEY=...
 SARVAM_STT_MODEL=saaras:v3
+SARVAM_TTS_MODEL=bulbul:v3
 ```
 
 Restart after changes: `npx expo start --clear`
 
-### Recorder → Calendar test checklist
+### Chat test checklist
 
-1. Record 30–60s → Stop → wait for transcript → **Send**
-2. Class Reflection panel appears with 4 colored sections + score
-3. Open **Calendar** tab — session on today with score badge
-4. **View Details** — yellow header modal with full reflection
+1. Open **Chat** tab → composer docked above tab bar
+2. Type message → tap pink **send** arrow → streaming reply
+3. Tap **mic** → speak → stop → transcript auto-sends
+4. Hamburger → history drawer slides in with blur; tap card to load; delete removes from Aura
+5. Cold start app → lands on **Recorder** tab
 
 ### Commands
 
@@ -289,4 +293,4 @@ Restart after changes: `npx expo start --clear`
 
 ---
 
-*Last updated: 2026-06-06 — Phase 6b `8a512d2` on `dev`.*
+*Last updated: 2026-06-06 — Phase 7 Chat Acharya committed (`9d2aca5`).*
