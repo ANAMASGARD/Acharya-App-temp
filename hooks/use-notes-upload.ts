@@ -50,7 +50,7 @@ export function useNotesUpload(): UseNotesUploadResult {
         return;
       }
 
-      setSelectedFile(normalized);
+      setSelectedFile({ ...normalized, kind: normalized.kind ?? "document" });
     } catch {
       setError("pick_failed");
     } finally {

@@ -9,14 +9,30 @@
 export const AI_ENV = {
   OPENROUTER_API_KEY: "OPENROUTER_API_KEY",
   OPENROUTER_MODEL: "OPENROUTER_MODEL",
+  OPENROUTER_EMBEDDING_MODEL: "OPENROUTER_EMBEDDING_MODEL",
+  OPENROUTER_VISION_MODEL: "OPENROUTER_VISION_MODEL",
+  OPENROUTER_VISION_SEED_MODEL: "OPENROUTER_VISION_SEED_MODEL",
   SARVAM_API_KEY: "SARVAM_API_KEY",
   SARVAM_STT_MODEL: "SARVAM_STT_MODEL",
   SARVAM_TTS_MODEL: "SARVAM_TTS_MODEL",
+  NOTES_MAX_UPLOAD_BYTES: "NOTES_MAX_UPLOAD_BYTES",
+  RAG_DEBUG: "RAG_DEBUG",
 } as const;
 
 export type OpenRouterConfig = Readonly<{
   apiKey: string;
   model: string;
+}>;
+
+export type OpenRouterEmbeddingConfig = Readonly<{
+  apiKey: string;
+  model: string;
+}>;
+
+export type OpenRouterVisionConfig = Readonly<{
+  apiKey: string;
+  model: string;
+  seedModel: string;
 }>;
 
 export type SarvamConfig = Readonly<{
@@ -71,6 +87,65 @@ export function getOpenRouterConfig(): OpenRouterConfig {
   }
 
   return { apiKey, model };
+}
+
+/**
+ * OpenRouter embeddings for RAG (must match Aura ingestion model).
+ */
+export function getOpenRouterEmbeddingConfig(): OpenRouterEmbeddingConfig {
+  const apiKey = readEnv(AI_ENV.OPENROUTER_API_KEY);
+  const model = readEnv(AI_ENV.OPENROUTER_EMBEDDING_MODEL);
+
+  if (!apiKey) {
+    throw new OpenRouterConfigError(
+      "Embeddings are not configured. Add OPENROUTER_API_KEY to .env.",
+    );
+  }
+
+  if (!model) {
+    throw new OpenRouterConfigError(
+      "Embedding model is not configured. Add OPENROUTER_EMBEDDING_MODEL to .env after Aura introspection.",
+    );
+  }
+
+  return { apiKey, model };
+}
+
+/**
+ * OpenRouter vision models for image seed + multimodal verify.
+ */
+export function getOpenRouterVisionConfig(): OpenRouterVisionConfig {
+  const apiKey = readEnv(AI_ENV.OPENROUTER_API_KEY);
+  const model =
+    readEnv(AI_ENV.OPENROUTER_VISION_MODEL) ??
+    readEnv(AI_ENV.OPENROUTER_MODEL);
+  const seedModel =
+    readEnv(AI_ENV.OPENROUTER_VISION_SEED_MODEL) ?? model;
+
+  if (!apiKey) {
+    throw new OpenRouterConfigError(
+      "Vision service is not configured. Add OPENROUTER_API_KEY to .env.",
+    );
+  }
+
+  if (!model) {
+    throw new OpenRouterConfigError(
+      "Vision model is not configured. Add OPENROUTER_VISION_MODEL or OPENROUTER_MODEL to .env.",
+    );
+  }
+
+  return { apiKey, model, seedModel: seedModel ?? model };
+}
+
+export function getNotesMaxUploadBytes(): number {
+  const raw = readEnv(AI_ENV.NOTES_MAX_UPLOAD_BYTES);
+  const parsed = raw ? Number.parseInt(raw, 10) : 10_485_760;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10_485_760;
+}
+
+export function isRagDebugEnabled(): boolean {
+  const raw = readEnv(AI_ENV.RAG_DEBUG);
+  return raw === "true" || raw === "1";
 }
 
 /**

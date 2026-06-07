@@ -6,6 +6,7 @@ import {
 import { colors } from "@/theme/colors";
 import { borderWidths, radii, shadows, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
+import { useCurriculumAvailability } from "@/hooks/use-curriculum-availability";
 import type { CurriculumClass, CurriculumSelection } from "@/types/curriculum";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -56,6 +57,8 @@ type Props = Readonly<{
   onOpenTeachingClasses: () => void;
 }>;
 
+const AVAILABLE_GREEN = "#22A06B";
+
 function subjectCountLabel(count: number): string {
   return count === 1 ? "1 subject" : `${count} subjects`;
 }
@@ -76,6 +79,8 @@ export function CurriculumSelectSheet({
   const [mounted, setMounted] = useState(visible);
   const [isUploadingBook, setIsUploadingBook] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const { isReady: isCurriculumReady, isLoading: isAvailabilityLoading } =
+    useCurriculumAvailability(visible);
 
   const translateY = useSharedValue(SHEET_SLIDE_DISTANCE);
   const backdropProgress = useSharedValue(0);
@@ -254,6 +259,7 @@ export function CurriculumSelectSheet({
                   key={classItem.id}
                   classItem={classItem}
                   expanded={expandedClassId === classItem.id}
+                  isCurriculumReady={isCurriculumReady}
                   selection={selection}
                   onSelectSubject={onSelectSubject}
                   onToggle={() => {
@@ -287,6 +293,10 @@ export function CurriculumSelectSheet({
             {uploadError ? (
               <Text style={styles.uploadError}>{uploadError}</Text>
             ) : null}
+
+            {isAvailabilityLoading ? (
+              <Text style={styles.availabilityHint}>Checking book availability…</Text>
+            ) : null}
           </ScrollView>
 
           <View style={styles.footer}>
@@ -304,14 +314,41 @@ export function CurriculumSelectSheet({
 type ClassBlockProps = Readonly<{
   classItem: CurriculumClass;
   expanded: boolean;
+  isCurriculumReady: (classLevel: string, subject: string) => boolean;
   selection: CurriculumSelection | null;
   onToggle: () => void;
   onSelectSubject: (selection: CurriculumSelection) => void;
 }>;
 
+function SubjectAvailabilityBadge({
+  available,
+  selected,
+}: Readonly<{
+  available: boolean;
+  selected: boolean;
+}>): React.ReactElement {
+  if (available) {
+    return (
+      <View style={styles.availableBadge}>
+        {selected ? <Text style={styles.selectedLabel}>Selected</Text> : null}
+        <Text style={styles.availableLabel}>Available</Text>
+        <MaterialCommunityIcons
+          accessibilityLabel="Books available"
+          color={AVAILABLE_GREEN}
+          name="check-circle"
+          size={22}
+        />
+      </View>
+    );
+  }
+
+  return <Text style={styles.comingSoonLabel}>Coming soon</Text>;
+}
+
 function CurriculumClassBlock({
   classItem,
   expanded,
+  isCurriculumReady,
   selection,
   onToggle,
   onSelectSubject,
@@ -350,11 +387,12 @@ function CurriculumClassBlock({
             const isSelected =
               selection?.classId === classItem.id &&
               selection.subjectId === subject.id;
+            const hasBooks = isCurriculumReady(classItem.id, subject.id);
 
             return (
               <Pressable
                 key={subject.id}
-                accessibilityLabel={`${subject.label}, ${isSelected ? "selected" : subject.status}`}
+                accessibilityLabel={`${subject.label}, ${hasBooks ? "books available" : "coming soon"}${isSelected ? ", selected" : ""}`}
                 onPress={() => {
                   onSelectSubject({
                     classId: classItem.id,
@@ -366,18 +404,19 @@ function CurriculumClassBlock({
                 style={({ pressed }) => [
                   styles.subjectRow,
                   isSelected ? styles.subjectRowSelected : null,
+                  !hasBooks ? styles.subjectRowComingSoon : null,
                   pressed ? styles.rowPressed : null,
                 ]}
               >
-                <Text style={styles.subjectLabel}>{subject.label}</Text>
                 <Text
                   style={[
-                    styles.subjectStatus,
-                    isSelected ? styles.subjectStatusSelected : null,
+                    styles.subjectLabel,
+                    hasBooks ? styles.subjectLabelAvailable : null,
                   ]}
                 >
-                  {isSelected ? "Selected" : "Pending"}
+                  {subject.label}
                 </Text>
+                <SubjectAvailabilityBadge available={hasBooks} selected={isSelected} />
               </Pressable>
             );
           })
@@ -565,6 +604,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
   },
+  subjectLabelAvailable: {
+    color: AVAILABLE_GREEN,
+    fontFamily: fontFamilies.sansBold,
+  },
   subjectRow: {
     alignItems: "center",
     backgroundColor: colors.sky,
@@ -580,14 +623,38 @@ const styles = StyleSheet.create({
   subjectRowSelected: {
     backgroundColor: colors.mint,
   },
-  subjectStatus: {
-    color: "#E07A5F",
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 14,
-    lineHeight: 18,
+  subjectRowComingSoon: {
+    opacity: 0.92,
   },
-  subjectStatusSelected: {
+  availableBadge: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  availableLabel: {
+    color: AVAILABLE_GREEN,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  selectedLabel: {
     color: colors.foreground,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  comingSoonLabel: {
+    color: colors.primary,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  availabilityHint: {
+    color: colors.mutedForeground,
+    fontFamily: fontFamilies.sans,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
   },
   uploadBookRow: {
     alignItems: "center",

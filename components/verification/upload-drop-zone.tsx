@@ -8,6 +8,7 @@ import { borderWidths, radii, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import type { NotesUploadError, NotesUploadFile } from "@/types/notes-verification";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 type Props = Readonly<{
@@ -15,8 +16,12 @@ type Props = Readonly<{
   isPicking: boolean;
   error: NotesUploadError | null;
   canVerify: boolean;
+  isVerifying: boolean;
   onPickDocument: () => void;
+  onPickImage: () => void;
+  onTakePhoto: () => void;
   onClearFile: () => void;
+  onVerify: () => void;
 }>;
 
 export function UploadDropZone({
@@ -24,30 +29,51 @@ export function UploadDropZone({
   isPicking,
   error,
   canVerify,
+  isVerifying,
   onPickDocument,
+  onPickImage,
+  onTakePhoto,
   onClearFile,
+  onVerify,
 }: Props): React.ReactElement {
   const hasFile = selectedFile !== null;
-  const showVerifyHelper = hasFile && !canVerify;
-
-  const dropZoneStyle = [styles.dropZone];
+  const isImage = selectedFile?.kind === "image";
 
   return (
     <View style={styles.container}>
+      <Text style={styles.stepLabel}>1 · Upload question paper</Text>
+
       {hasFile ? (
-        <View style={dropZoneStyle}>
+        <View style={styles.dropZone}>
           {isPicking ? (
             <ActivityIndicator color={colors.foreground} size="small" />
+          ) : isImage ? (
+            <View style={styles.imagePreview}>
+              <Image
+                contentFit="cover"
+                source={{ uri: selectedFile.uri }}
+                style={styles.previewImage}
+              />
+              <View style={styles.fileMeta}>
+                <Text numberOfLines={1} style={styles.fileName}>
+                  {selectedFile.name}
+                </Text>
+                <Text style={styles.fileSize}>
+                  {formatFileSize(selectedFile.sizeBytes)}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Remove selected file"
+                hitSlop={8}
+                onPress={onClearFile}
+                style={styles.clearButton}
+              >
+                <MaterialCommunityIcons color={colors.foreground} name="close" size={18} />
+              </Pressable>
+            </View>
           ) : (
             <View style={styles.filePreview}>
-              <Pressable
-                accessibilityLabel="Change selected file"
-                onPress={onPickDocument}
-                style={({ pressed }) => [
-                  styles.fileTapArea,
-                  pressed ? styles.fileTapAreaPressed : null,
-                ]}
-              >
+              <Pressable onPress={onPickDocument} style={styles.fileTapArea}>
                 <View style={styles.fileIconWrap}>
                   <MaterialCommunityIcons
                     color={colors.foreground}
@@ -68,73 +94,54 @@ export function UploadDropZone({
                 accessibilityLabel="Remove selected file"
                 hitSlop={8}
                 onPress={onClearFile}
-                style={({ pressed }) => [
-                  styles.clearButton,
-                  pressed ? styles.clearButtonPressed : null,
-                ]}
+                style={styles.clearButton}
               >
-                <MaterialCommunityIcons
-                  color={colors.foreground}
-                  name="close"
-                  size={18}
-                />
+                <MaterialCommunityIcons color={colors.foreground} name="close" size={18} />
               </Pressable>
             </View>
           )}
         </View>
       ) : (
-        <Pressable
-          accessibilityLabel="Upload notes, PDF or Word document"
-          accessibilityRole="button"
-          disabled={isPicking}
-          onPress={onPickDocument}
-          style={({ pressed }) => [
-            ...dropZoneStyle,
-            pressed && !isPicking ? styles.dropZonePressed : null,
-          ]}
-        >
+        <View style={styles.dropZone}>
           {isPicking ? (
             <ActivityIndicator color={colors.foreground} size="small" />
           ) : (
-            <Text style={styles.zoneLabel}>Upload PDF/Doc</Text>
+            <>
+              <Text style={styles.zoneLabel}>PDF, Word, or photo</Text>
+              <View style={styles.sourceRow}>
+                <Pressable onPress={onPickDocument} style={styles.sourceButton}>
+                  <MaterialCommunityIcons name="file-document-outline" size={18} />
+                  <Text style={styles.sourceLabel}>PDF/Doc</Text>
+                </Pressable>
+                <Pressable onPress={onPickImage} style={styles.sourceButton}>
+                  <MaterialCommunityIcons name="image-outline" size={18} />
+                  <Text style={styles.sourceLabel}>Gallery</Text>
+                </Pressable>
+                <Pressable onPress={onTakePhoto} style={styles.sourceButton}>
+                  <MaterialCommunityIcons name="camera-outline" size={18} />
+                  <Text style={styles.sourceLabel}>Camera</Text>
+                </Pressable>
+              </View>
+            </>
           )}
-        </Pressable>
+        </View>
       )}
 
       {error ? (
         <View style={styles.errorBanner}>
-          <MaterialCommunityIcons
-            color={colors.foreground}
-            name="alert-circle-outline"
-            size={18}
-          />
+          <MaterialCommunityIcons color={colors.foreground} name="alert-circle-outline" size={18} />
           <Text style={styles.errorText}>{getNotesUploadErrorMessage(error)}</Text>
         </View>
       ) : null}
 
       <View style={styles.ctaWrap}>
-        {hasFile ? (
-          <NeoButton
-            disabled
-            iconName="check-decagram"
-            label="Verify Notes"
-            onPress={() => undefined}
-          />
-        ) : (
-          <NeoButton
-            disabled={isPicking}
-            iconName="tray-arrow-up"
-            label="Upload Notes"
-            onPress={onPickDocument}
-          />
-        )}
+        <NeoButton
+          disabled={!canVerify || isVerifying}
+          iconName="check-decagram"
+          label={isVerifying ? "Verifying…" : "Verify Paper"}
+          onPress={onVerify}
+        />
       </View>
-
-      {showVerifyHelper ? (
-        <Text style={styles.helperText}>
-          Verification coming soon — your file is ready.
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -149,9 +156,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: spacing.touch,
   },
-  clearButtonPressed: {
-    opacity: 0.85,
-  },
   container: {
     gap: spacing.md,
   },
@@ -164,13 +168,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderStyle: "dashed",
     borderWidth: borderWidths.thin,
+    gap: spacing.md,
     justifyContent: "center",
     minHeight: 168,
     padding: spacing.lg,
-  },
-  dropZonePressed: {
-    backgroundColor: colors.accent,
-    opacity: 0.95,
   },
   errorBanner: {
     alignItems: "center",
@@ -216,6 +217,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     width: "100%",
   },
+  fileSize: {
+    color: colors.mutedForeground,
+    fontFamily: fontFamilies.sans,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   fileTapArea: {
     alignItems: "center",
     flex: 1,
@@ -223,21 +230,44 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     minHeight: spacing.touch,
   },
-  fileTapAreaPressed: {
-    opacity: 0.85,
+  imagePreview: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
+    width: "100%",
   },
-  fileSize: {
-    color: colors.mutedForeground,
-    fontFamily: fontFamilies.sans,
-    fontSize: 13,
-    lineHeight: 18,
+  previewImage: {
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: borderWidths.thin,
+    height: 72,
+    width: 72,
   },
-  helperText: {
-    color: colors.mutedForeground,
-    fontFamily: fontFamilies.sans,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
+  sourceButton: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: borderWidths.thin,
+    flex: 1,
+    gap: 4,
+    paddingVertical: spacing.sm,
+  },
+  sourceLabel: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 12,
+  },
+  sourceRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    width: "100%",
+  },
+  stepLabel: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 16,
+    lineHeight: 22,
   },
   zoneLabel: {
     color: colors.foreground,

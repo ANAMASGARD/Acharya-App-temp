@@ -77,11 +77,20 @@ MATCH (note)-[:SIMILAR_TO]->(ref:Chunk)-[:IN_CHAPTER]->(ch:Chapter)
 RETURN note, ref, ch, note.text AS noteText, ref.text AS refText
 ```
 
+## Schema (`neo4j/schema.cypher`)
+
+Applied to Aura (idempotent `IF NOT EXISTS`):
+
+- **11 uniqueness constraints** — `Teacher`, `Session`, `Transcript`, `Report`, `CurriculumBook`, `Chapter`, `Chunk`, `AudioChunk`, `VerificationReport`, `ChatConversation`, `ChatMessage`
+- **Lookup indexes** — session dates, `Chunk.source`, `CurriculumBook` class/subject + `isPreloaded`, `VerificationReport.mode`, chat message timestamps
+- **Vector index** — `chunk_embedding` on `Chunk.embedding` (1536 dimensions, cosine — matches `openai/text-embedding-3-small`)
+
 ## Apply schema
 
 ```bash
 # After Aura instance is running and .env has NEO4J_* vars
-cypher-shell -a "$NEO4J_URI" -u "$NEO4J_USERNAME" -p "$NEO4J_PASSWORD" -f neo4j/schema.cypher
+npm run neo4j:apply-schema
+# or: cypher-shell -a "$NEO4J_URI" -u "$NEO4J_USERNAME" -p "$NEO4J_PASSWORD" -f neo4j/schema.cypher
 ```
 
 ## Health check (API)
