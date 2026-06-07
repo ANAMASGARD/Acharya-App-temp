@@ -11,7 +11,7 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate) |
-| **Phase** | **Phase 7c — Question Paper Graph RAG** ✅ in progress on `dev` |
+| **Phase** | **Phase 7c — Question Paper Graph RAG** ✅ **committed** (`0a3af7e`) |
 | **Previous phases** | Phase 7b Notes UI (`a50a59b`), Phase 7 Chat (`4e652bc`), Phase 6b calendar (`d692ea9`) |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes upload + generate UI |
