@@ -42,3 +42,8 @@ app-example
 # generated native folders
 /ios
 /android
+
+# NCERT curriculum PDFs (local only — config + README are tracked)
+/books/*
+!/books/demo-books.json
+!/books/README.md

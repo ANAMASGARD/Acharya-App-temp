@@ -48,6 +48,15 @@ FOR (s:Session) ON (s.teacherClerkId);
 CREATE INDEX chunk_source IF NOT EXISTS
 FOR (c:Chunk) ON (c.source);
 
+CREATE INDEX curriculum_book_class_subject IF NOT EXISTS
+FOR (b:CurriculumBook) ON (b.classLevel, b.subject);
+
+CREATE INDEX curriculum_book_preloaded IF NOT EXISTS
+FOR (b:CurriculumBook) ON (b.isPreloaded);
+
+CREATE INDEX verification_report_mode IF NOT EXISTS
+FOR (v:VerificationReport) ON (v.mode);
+
 CREATE INDEX chat_message_created IF NOT EXISTS
 FOR (m:ChatMessage) ON (m.createdAt);
 

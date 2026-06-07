@@ -15,6 +15,10 @@ export const RECORDER_SUBJECTS: readonly RecorderOption[] = [
 ] as const;
 
 export const RECORDER_CLASS_LEVELS: readonly RecorderOption[] = [
+  { id: "class-2", label: "Class 2" },
+  { id: "class-3", label: "Class 3" },
+  { id: "class-4", label: "Class 4" },
+  { id: "class-5", label: "Class 5" },
   { id: "class-6", label: "Class 6" },
   { id: "class-7", label: "Class 7" },
   { id: "class-8", label: "Class 8" },

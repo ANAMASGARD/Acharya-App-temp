@@ -1,10 +1,12 @@
 import { AnimatedMenuDots } from "@/components/verification/animated-menu-dots";
+import { BookMultiSelect } from "@/components/verification/book-multi-select";
 import { CurriculumSelectSheet } from "@/components/verification/curriculum-select-sheet";
 import { UploadDropZone } from "@/components/verification/upload-drop-zone";
 import { VerificationGapsTimeline } from "@/components/verification/verification-gaps-timeline";
-import { DEMO_VERIFICATION_GAPS } from "@/data/notes-verification-demo";
+import { useCurriculumBooks } from "@/hooks/use-curriculum-books";
 import { useCurriculumSelection } from "@/hooks/use-curriculum-selection";
-import { useNotesUpload } from "@/hooks/use-notes-upload";
+import { useQuestionPaperUpload } from "@/hooks/use-question-paper-upload";
+import { useQuestionPaperVerify } from "@/hooks/use-question-paper-verify";
 import { getTeachingClassesForCurriculum } from "@/lib/teaching-classes";
 import { usePreferencesStore } from "@/store/preferences-store";
 import { colors } from "@/theme/colors";
@@ -13,21 +15,25 @@ import { fontFamilies } from "@/theme/typography";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export function NotesUploadScreen(): React.ReactElement {
   const router = useRouter();
   const teachingClassIds = usePreferencesStore((state) => state.teachingClassIds);
+  const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
+
   const {
     selectedFile,
     isPicking,
     error,
-    canVerify,
     pickDocument,
+    pickImage,
+    takePhoto,
     clearFile,
-  } = useNotesUpload();
+  } = useQuestionPaperUpload();
+
   const {
     sheetVisible,
     expandedClassId,
@@ -41,10 +47,38 @@ export function NotesUploadScreen(): React.ReactElement {
     setUploadedBookName,
   } = useCurriculumSelection();
 
+  const { books, isLoading: booksLoading, error: booksError } = useCurriculumBooks(
+    selection?.classId ?? null,
+    selection?.subjectId ?? null,
+  );
+
+  const {
+    canVerify,
+    isVerifying,
+    error: verifyError,
+    result,
+    verify,
+    clearResult,
+  } = useQuestionPaperVerify({
+    selectedFile,
+    selection,
+    selectedBookIds,
+  });
+
   const curriculumClasses = useMemo(
     () => getTeachingClassesForCurriculum(teachingClassIds),
     [teachingClassIds],
   );
+
+  const gaps = result?.gaps ?? [];
+
+  const toggleBook = useCallback((bookId: string): void => {
+    setSelectedBookIds((current) =>
+      current.includes(bookId)
+        ? current.filter((id) => id !== bookId)
+        : [...current, bookId],
+    );
+  }, []);
 
   const openTeachingClasses = (): void => {
     closeSheet();
@@ -58,8 +92,20 @@ export function NotesUploadScreen(): React.ReactElement {
       !teachingClassIds.includes(selection.classId)
     ) {
       clearSelection();
+      setSelectedBookIds([]);
     }
   }, [clearSelection, selection, teachingClassIds]);
+
+  useEffect(() => {
+    setSelectedBookIds([]);
+    clearResult();
+  }, [selection?.classId, selection?.subjectId, clearResult]);
+
+  useEffect(() => {
+    if (books.length === 1 && selectedBookIds.length === 0) {
+      setSelectedBookIds([books[0]!.bookId]);
+    }
+  }, [books, selectedBookIds.length]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -81,7 +127,7 @@ export function NotesUploadScreen(): React.ReactElement {
         </Pressable>
 
         <Text numberOfLines={2} style={styles.title}>
-          Verify Lesson Notes
+          Verify Question Paper
         </Text>
 
         <Pressable
@@ -97,6 +143,16 @@ export function NotesUploadScreen(): React.ReactElement {
         </Pressable>
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          router.push("/notes/generate");
+        }}
+        style={styles.generateLink}
+      >
+        <Text style={styles.generateLinkText}>Generate a new paper instead →</Text>
+      </Pressable>
+
       {selection ? (
         <View style={styles.selectionBanner}>
           <MaterialCommunityIcons
@@ -110,11 +166,11 @@ export function NotesUploadScreen(): React.ReactElement {
           <Pressable
             accessibilityLabel="Clear curriculum selection"
             hitSlop={8}
-            onPress={clearSelection}
-            style={({ pressed }) => [
-              styles.clearSelectionButton,
-              pressed ? styles.clearSelectionPressed : null,
-            ]}
+            onPress={() => {
+              clearSelection();
+              setSelectedBookIds([]);
+            }}
+            style={styles.clearSelectionButton}
           >
             <MaterialCommunityIcons color={colors.foreground} name="close" size={18} />
           </Pressable>
@@ -130,14 +186,67 @@ export function NotesUploadScreen(): React.ReactElement {
           canVerify={canVerify}
           error={error}
           isPicking={isPicking}
-          onClearFile={clearFile}
+          isVerifying={isVerifying}
+          onClearFile={() => {
+            clearFile();
+            clearResult();
+          }}
           onPickDocument={() => {
             void pickDocument();
+          }}
+          onPickImage={() => {
+            void pickImage();
+          }}
+          onTakePhoto={() => {
+            void takePhoto();
+          }}
+          onVerify={() => {
+            void verify();
           }}
           selectedFile={selectedFile}
         />
 
-        <VerificationGapsTimeline gaps={DEMO_VERIFICATION_GAPS} />
+        {selection ? (
+          <View style={styles.stepSection}>
+            <Text style={styles.stepLabel}>2 · Choose NCERT books</Text>
+            <BookMultiSelect
+              books={books}
+              error={booksError}
+              isLoading={booksLoading}
+              onToggleBook={toggleBook}
+              selectedBookIds={selectedBookIds}
+            />
+          </View>
+        ) : (
+          <Text style={styles.hint}>
+            Tap the red menu to select class and subject before verifying.
+          </Text>
+        )}
+
+        {result?.extractionWarning === "image_unclear" ? (
+          <View style={styles.warningBanner}>
+            <Text style={styles.warningText}>
+              Image unclear — retake in better lighting for a more reliable check.
+            </Text>
+          </View>
+        ) : null}
+
+        {verifyError ? <Text style={styles.verifyError}>{verifyError}</Text> : null}
+
+        {result ? (
+          <View style={styles.stepSection}>
+            <Text style={styles.stepLabel}>4 · Results</Text>
+            {result.alignmentScore !== undefined ? (
+              <Text style={styles.scoreText}>
+                Alignment score: {Math.round(result.alignmentScore)}%
+              </Text>
+            ) : null}
+            {result.difficultySummary ? (
+              <Text style={styles.difficultyText}>{result.difficultySummary}</Text>
+            ) : null}
+            <VerificationGapsTimeline gaps={gaps} />
+          </View>
+        ) : null}
       </ScrollView>
 
       <CurriculumSelectSheet
@@ -183,8 +292,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 32,
   },
-  clearSelectionPressed: {
-    opacity: 0.85,
+  difficultyText: {
+    color: colors.mutedForeground,
+    fontFamily: fontFamilies.sans,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  generateLink: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+  },
+  generateLinkText: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 14,
+    textDecorationLine: "underline",
   },
   header: {
     alignItems: "center",
@@ -193,6 +315,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
+  },
+  hint: {
+    color: colors.mutedForeground,
+    fontFamily: fontFamilies.sans,
+    fontSize: 14,
+    lineHeight: 20,
   },
   menuButton: {
     alignItems: "center",
@@ -211,6 +339,12 @@ const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: colors.cream,
     flex: 1,
+  },
+  scoreText: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 16,
+    lineHeight: 22,
   },
   scrollContent: {
     gap: spacing.lg,
@@ -238,11 +372,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
   },
+  stepLabel: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  stepSection: {
+    gap: spacing.sm,
+  },
   title: {
     color: colors.foreground,
     flex: 1,
     fontFamily: fontFamilies.head,
     fontSize: 26,
     lineHeight: 30,
+  },
+  verifyError: {
+    color: colors.destructive,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  warningBanner: {
+    backgroundColor: colors.coralLight,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: borderWidths.thin,
+    padding: spacing.md,
+  },
+  warningText: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

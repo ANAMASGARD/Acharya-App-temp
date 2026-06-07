@@ -2,7 +2,7 @@
 
 > **Purpose:** Single source of project history + current state for humans and AI agents.  
 > **Spec:** Product/architecture rules live in [`AGENTS.md`](../AGENTS.md) — read that before implementing features.  
-> **Update rule:** After each meaningful commit, update **§4 Current State** and add one entry to **§6 Commit Log**.
+> **Update rule:** After each meaningful commit, update **§5 Current State** and add one entry to **§6 Commit Log**.
 
 ---
 
@@ -10,38 +10,45 @@
 
 | Field | Value |
 |-------|--------|
-| **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 7b — Notes Verification UI v1** ✅ **committed** (`a50a59b`) |
-| **Previous phases** | Phase 7 Chat Acharya (`4e652bc`), Phase 6b analyze + calendar (`d692ea9`) |
+| **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate) |
+| **Phase** | **Phase 7c — Question Paper Graph RAG** ✅ **committed** (`0a3af7e`) |
+| **Previous phases** | Phase 7b Notes UI (`a50a59b`), Phase 7 Chat (`4e652bc`), Phase 6b calendar (`d692ea9`) |
 | **Branch** | `dev` |
-| **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes upload UI verified |
+| **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes upload + generate UI |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
 
 ### What works today
 
-**Notes Verification UI v1 (`/notes/upload`) ✅**
+**Question Paper Tool (Phase 7c) ✅**
 
-- Neo-Brutal screen from `prompt_material/09-notes-verify.png`: upload zone, gaps timeline, curriculum sheet
-- **PDF/DOC pick** via `expo-document-picker` + client MIME/extension validation
-- **Upload Notes** / disabled **Verify Notes** (backend pending) with teacher-facing copy
-- **Curriculum bottom sheet** — blur backdrop (same pattern as chat drawer), class accordion, subjects, upload book row
-- **Teaching classes** in Profile — multi-select persisted; sheet filters to those classes only
-- **Selection banner** with clear (×); animated horizontal red menu dots on header
-- Demo gap cards until `POST /api/notes/verify` + Aura GraphRAG lands
+- **`/notes/upload`** — verify question papers (PDF/DOC/image/camera) against NCERT books in Aura
+- **`/notes/generate`** — generate unit test / half yearly / surprise quiz / model papers from embedded curriculum
+- **Hybrid Graph RAG** — vector ANN → graph join → keyword boost → single OpenRouter LLM call (verify + generate)
+- **11 demo NCERT books embedded** in Aura (~1,987 curriculum chunks, `openai/text-embedding-3-small`, dim 1536)
+- **Curriculum sheet** — 2 subjects per class; green **Available** + tick from live Aura; yellow **Coming soon** placeholder
+- **Book ingest pipeline** — `npm run books:embed-missing` (safe incremental), `npm run books:status`
 
-**Chat Acharya (`/(tabs)/chat` — Phase 7) ✅** — unchanged; Upload pill → `/notes/upload`
+**API routes (Clerk auth)**
 
-**Recorder, Calendar, Auth, Profile** — unchanged from Phase 7 memory
+| Route | Role |
+|-------|------|
+| `GET /api/curriculum/books` | Books + chapters for class/subject |
+| `GET /api/curriculum/availability` | Class+subject pairs with embedded chunks |
+| `POST /api/notes/verify` | Multipart verify → gaps + alignment |
+| `POST /api/notes/generate` | JSON generate → structured paper |
+
+**Chat, Recorder, Calendar, Auth, Profile** — unchanged from prior phases
 
 **Not built yet**
 
-- `POST /api/notes/verify` — chunk, embed, vector search, Gemini gaps → `VerificationReport` on Aura
-- Enable **Verify Notes** when file + class + subject + API healthy
 - Home `NotesGapsCard` CTA → `/notes/upload`
 - Chat **Voice** pill → Sarvam conversational agent
-- Live Home data from Aura
+- Live Home dashboard from Aura
+- More than 2 subjects per class in curriculum sheet (placeholder pattern ready)
 
-**Validation (last run — 2026-06-06):** `npm run lint` + `npx tsc --noEmit` — pass
+**Validation (last run — 2026-06-07):** `npm run lint` + `npx tsc --noEmit` + `npm run verify:neo4j` + `npm run neo4j:test` + `npm run neo4j:test-api` — **pass**
+
+**Aura schema:** `neo4j/schema.cypher` applied (19 statements — constraints, indexes, `chunk_embedding` vector index 1536 cosine)
 
 ---
 
@@ -50,134 +57,120 @@
 ```
 Phase 0–6b   … prior phases (see §6 Commit Log)
 Phase 7      Chat Acharya       ✅ 4e652bc
-Phase 7b     Notes verify UI    ✅ a50a59b — UI v1; backend RAG ⬜ next
-Phase 7c     Notes RAG API      ⬜ planned — Aura Chunk + VerificationReport
+Phase 7b     Notes verify UI    ✅ a50a59b
+Phase 7c     Question Paper RAG ✅ — verify + generate APIs, NCERT ingest, curriculum availability UI
 ```
 
 ---
 
 ## 3. Architecture Snapshot
 
-### Notes verification UI (Phase 7b — client only)
+### Question paper RAG (Phase 7c)
 
 ```
-Chat header Upload pill
-  → app/notes/upload.tsx (thin route)
-  → components/verification/notes-upload-screen.tsx
-       ├── hooks/use-notes-upload.ts → expo-document-picker
-       ├── hooks/use-curriculum-selection.ts → sheet + subject selection state
-       ├── store/preferences-store.ts → teachingClassIds (filter sheet)
-       ├── components/verification/upload-drop-zone.tsx
-       ├── components/verification/verification-gaps-timeline.tsx (demo data)
-       └── components/verification/curriculum-select-sheet.tsx (blur + slide)
+Chat Upload pill → /notes/upload
+  → NotesUploadScreen
+       ├── useQuestionPaperUpload (PDF/DOC/gallery/camera)
+       ├── useCurriculumBooks → GET /api/curriculum/books
+       ├── useQuestionPaperVerify → POST /api/notes/verify
+       └── CurriculumSelectSheet (2 subjects/class, Aura availability)
 
-Profile → app/profile/teaching-classes.tsx
-  → components/profile/teaching-classes-screen.tsx → setTeachingClassIds
+/notes/generate → QuestionPaperGenerateScreen
+  → useQuestionPaperGenerate → POST /api/notes/generate
+
+Server:
+  lib/rag/extract-text.ts → pdf-parse, mammoth, vision seed
+  lib/rag/embeddings.ts → OpenRouter
+  lib/rag/retrieve.ts → hybrid post-filter retrieval
+  lib/rag/verify-evaluate.ts | generate-evaluate.ts
+  lib/graph/curriculum.ts | notes.ts
 ```
 
-### Future backend (not implemented)
+### NCERT demo books (local + Aura)
 
 ```
-POST /api/notes/verify (multipart: file, classId, subjectId, clerkId)
-  → extract → chunk → embed → MERGE Chunk
-  → (Teacher)-[:UPLOADED]->(noteChunk)
-  → vector index chunk_embedding + IN_CHAPTER traverse
-  → Gemini structured gaps → VerificationReport
-  → (Teacher)-[:REQUESTED]->(VerificationReport)-[:CHECKED_AGAINST]->(Chunk)
+books/demo-books.json          — one book per class (config)
+books/class-N/<subject>/<slug>/ — PDFs on disk
+npm run books:embed-missing    — manifest + ingest only missing
+npm run books:status           — compare disk vs Aura
 ```
 
-See [`neo4j/graph-model.md`](../neo4j/graph-model.md).
+Demo embedded (11/11): class 2–5 English Marigold, class 6 Science Curiosity, class 7–12 English (one book each).
 
-### Routes (Expo Router) — notes + profile additions
+See [`neo4j/graph-model.md`](../neo4j/graph-model.md), [`books/README.md`](../books/README.md).
+
+### Routes (Expo Router)
 
 | Route | File | Role |
 |-------|------|------|
-| `/notes/upload` | `app/notes/upload.tsx` | Compose `NotesUploadScreen` |
-| `/profile/teaching-classes` | `app/profile/teaching-classes.tsx` | Multi-select teaching grades |
+| `/notes/upload` | `app/notes/upload.tsx` | Verify question paper |
+| `/notes/generate` | `app/notes/generate.tsx` | Generate question paper |
+| `/profile/teaching-classes` | `app/profile/teaching-classes.tsx` | Classes 2–12 multi-select |
 
 ---
 
-## 4. File map — Notes Verification (Phase 7b)
+## 4. File map — Question Paper (Phase 7c)
 
-### Routes (`app/`)
+### API (`app/api/`)
 
-| File | Code |
+| File | Role |
 |------|------|
-| `app/notes/upload.tsx` | Default export → `<NotesUploadScreen />` only |
-| `app/profile/teaching-classes.tsx` | Default export → `<TeachingClassesScreen />` |
+| `curriculum/books+api.ts` | List Aura books |
+| `curriculum/availability+api.ts` | Embedded class+subject slots |
+| `notes/verify+api.ts` | Multipart verify pipeline |
+| `notes/generate+api.ts` | Paper generation |
 
-### Components (`components/verification/`)
+### Lib / RAG
 
-| File | Responsibility |
-|------|----------------|
-| `notes-upload-screen.tsx` | SafeArea, header (back + title + red ⋯), selection banner w/ clear, ScrollView, wires hooks + sheet |
-| `upload-drop-zone.tsx` | Dashed tappable zone, file preview (name + size), Upload Notes / disabled Verify Notes, error banner |
-| `verification-gaps-timeline.tsx` | Section title + dashed rail + maps `VerificationGap[]` |
-| `verification-gap-card.tsx` | Coral / coralLight / neutral Neo-Brutal cards + `mascotChecklist` |
-| `curriculum-select-sheet.tsx` | Modal: Reanimated blur backdrop + spring slide-up sheet; class accordion; upload book; empty state → settings |
-| `animated-menu-dots.tsx` | Horizontal pulsing dots (Reanimated) in red header button |
-
-### Components (`components/profile/`)
-
-| File | Responsibility |
-|------|----------------|
-| `teaching-classes-screen.tsx` | Checkbox list Class 6–12, summary card, Save → `setTeachingClassIds` |
-| `profile-screen.tsx` | **Modified:** App settings row **Select classes** → `/profile/teaching-classes` + subtitle |
-
-### Hooks
-
-| File | Responsibility |
-|------|----------------|
-| `hooks/use-notes-upload.ts` | `DocumentPicker.getDocumentAsync`, validate, `selectedFile` / `error` / `canVerify: false` |
-| `hooks/use-curriculum-selection.ts` | Sheet visibility, expanded class, `selection`, `uploadedBookName`, clear selection |
-
-### Lib / types / data
-
-| File | Responsibility |
-|------|----------------|
-| `lib/notes-file-validation.ts` | `ACCEPTED_NOTE_*`, `isAcceptedNotesFile`, `formatFileSize`, `normalizePickerAsset` |
-| `lib/teaching-classes.ts` | `getTeachingClassesForCurriculum`, `formatTeachingClassesSummary` |
-| `types/notes-verification.ts` | `VerificationGap`, `NotesUploadFile`, `NotesUploadError` |
-| `types/curriculum.ts` | `CurriculumClass`, `CurriculumSelection`, subject status |
-| `data/curriculum-catalog.ts` | Class 7–12 → subject lists (from recorder options) |
-| `data/notes-verification-demo.ts` | `DEMO_VERIFICATION_GAPS` for timeline placeholder |
-
-### Store
-
-| File | Change |
-|------|--------|
-| `store/preferences-store.ts` | `teachingClassIds: string[]`, `setTeachingClassIds`, `toggleTeachingClass` — persisted |
-
-### Dependencies
-
-| Package | Use |
-|---------|-----|
-| `expo-document-picker` ~14.0.8 | Notes file pick + curriculum book pick |
-
-### Chat entry (unchanged)
-
-| File | Link |
+| File | Role |
 |------|------|
-| `components/chat/chat-header.tsx` | Red **Upload** pill → `router.push("/notes/upload")` |
+| `lib/rag/chunk-text.ts` | Text chunking |
+| `lib/rag/embeddings.ts` | OpenRouter embeddings |
+| `lib/rag/extract-text.ts` | PDF/DOCX/image seed |
+| `lib/rag/retrieve.ts` | Hybrid retrieval |
+| `lib/rag/verify-evaluate.ts` | Structured verify LLM |
+| `lib/rag/generate-evaluate.ts` | Structured generate LLM |
+| `lib/graph/curriculum.ts` | Books, chapters, availability |
+| `lib/graph/notes.ts` | Teacher chunks, VerificationReport |
+| `lib/ai-config.ts` | Embedding, vision, RAG_DEBUG env |
+
+### Scripts
+
+| Script | npm command | Role |
+|--------|-------------|------|
+| `scripts/ingest-ncert-books.mjs` | `neo4j:ingest-books` | Batched embed + Aura write |
+| `scripts/embed-missing-books.mjs` | `books:embed-missing` | Safe incremental ingest |
+| `scripts/books-status.mjs` | `books:status` | Demo vs Aura report |
+| `scripts/aura-introspect.mjs` | `neo4j:introspect` | Chunk/index introspection |
+| `scripts/apply-neo4j-schema.mjs` | `neo4j:apply-schema` | Apply `schema.cypher` |
+
+### Neo4j
+
+| File | Role |
+|------|------|
+| `neo4j/schema.cypher` | Constraints, lookup indexes, `chunk_embedding` vector index (1536) |
+| `neo4j/graph-model.md` | Labels, relationships, example Cypher |
 
 ---
 
 ## 5. Current State
 
-> **Status:** Phase 7b Notes Verification UI v1 committed (`a50a59b`). Next: `POST /api/notes/verify` + Aura GraphRAG.
+> **Status:** Phase 7c Question Paper Graph RAG — verify + generate live; 11 demo books embedded; schema applied to Aura.
 
-### Phase 7b decisions
+### Phase 7c decisions
 
 | Topic | Implementation |
 |-------|----------------|
-| Teacher copy | **Upload Notes** / **Verify Notes** — not "RAG upload" |
-| Verify CTA | Disabled until API; helper: *Verification coming soon — your file is ready.* |
-| File validation | Picker MIME filter + extension/MIME re-check client-side |
-| Teaching classes | Profile multi-select → filters curriculum sheet only |
-| Curriculum sheet | Same blur animation as chat history drawer (`AnimatedBlurView`, spring sheet) |
-| Menu button | Red square, **horizontal** animated dots |
-| Selection UX | Mint banner + × to clear class/subject |
-| Backend | **None yet** — demo gaps, local file + selection state only |
+| RAG style | Structured retrieve → single LLM → JSON (not agentic loops) |
+| Embeddings | `openai/text-embedding-3-small` via OpenRouter; Aura vector index 1536 cosine |
+| Demo books | One book per class in `books/demo-books.json`; class 6 = Science Curiosity |
+| Curriculum UI | 2 subjects per class; availability from `GET /api/curriculum/availability` |
+| Ingest | Skip existing books/chapters; batched embed + UNWIND writes |
+| Images | Vision seed for retrieval; multimodal LLM for final verify |
+
+### Env (server `.env`)
+
+`OPENROUTER_EMBEDDING_MODEL`, `OPENROUTER_VISION_MODEL`, `INGEST_*` tuning — see `.env.example`.
 
 ---
 
@@ -185,11 +178,7 @@ See [`neo4j/graph-model.md`](../neo4j/graph-model.md).
 
 ### `a50a59b` — feat: Notes verification upload UI with curriculum sheet and class settings
 
-- Neo-Brutal `/notes/upload` from design ref `09-notes-verify.png`
-- `expo-document-picker`, validation lib, upload drop zone, demo gaps timeline
-- Curriculum bottom sheet (blur + slide), class/subject accordion, upload book row
-- Profile **Select classes** (multi-select persisted) filters curriculum popup
-- Animated horizontal menu dots; selection banner with clear
+- Neo-Brutal `/notes/upload`, curriculum sheet, teaching classes filter
 
 ### `4e652bc` — feat: Chat Acharya with Aura graph, voice input, and Neo-Brutal coach UI
 
@@ -197,12 +186,10 @@ See [`neo4j/graph-model.md`](../neo4j/graph-model.md).
 
 ## 7. Next Work (recommended order)
 
-1. **`POST /api/notes/verify`** — multipart upload, Clerk auth, chunk + embed + Aura writes
-2. **`lib/graph/notes.ts`** — MERGE `Chunk`, `VerificationReport`, relationships
-3. **Enable Verify Notes** — when file + curriculum selection + API ready
-4. **Replace demo gaps** — live `VerificationGap[]` from Gemini response
-5. **Wire Home `NotesGapsCard`** → `/notes/upload`
-6. **Chat voice agent** — Voice pill → Sarvam conversational agent
+1. **End-to-end manual test** — verify + generate on device with Clerk auth + API server
+2. **Home `NotesGapsCard`** → `/notes/upload`
+3. **Add class 6 English + more subjects** when PDFs ready → `npm run books:embed-missing`
+4. **Chat voice agent** — Voice pill → Sarvam conversational agent
 
 ---
 
@@ -220,10 +207,9 @@ When you finish a meaningful commit:
 
 | File | Screen |
 |------|--------|
-| `prompt_material/09-notes-verify.png` | Notes upload + gaps timeline — **UI v1 implemented** |
+| `prompt_material/09-notes-verify.png` | Notes upload + gaps — **implemented + live verify** |
 | `prompt_material/06-teaching-calendar.png` | Calendar — implemented |
 | `prompt_material/05-core-recorder.png` | Recorder — implemented |
-| `prompt_material/04-home-dashboard.png` | Home — implemented |
 
 ---
 
@@ -233,23 +219,20 @@ When you finish a meaningful commit:
 
 ```bash
 npm run lint && npx tsc --noEmit
+npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
+npm run neo4j:apply-schema    # idempotent — safe to re-run
+npm run books:status
+npm run books:embed-missing # after adding PDFs to books/
 npm run start:go -- --clear
 ```
 
-### Notes verification test checklist
+### Question paper test checklist
 
-1. **Profile → Select classes** → pick Class 9, 10, 12 → Save
-2. **Chat → Upload** → Verify Lesson Notes screen
-3. Tap dashed zone or **Upload Notes** → pick PDF → name + size shown
-4. Tap red **⋯** → blur backdrop + sheet; only saved classes listed
-5. Expand class → tap subject → sheet closes; mint banner with × clear
-6. **Upload book** row in sheet → document picker
-7. **Verify Notes** stays disabled with helper text
-
-### Chat test checklist
-
-Unchanged — see Phase 7 memory (composer, mic STT, history drawer blur).
+1. **Profile → Select classes** → include Class 6–12 (or 2–12 for full demo)
+2. **Chat → Upload** → pick class → expand → **English** or **Science** shows green Available
+3. Select subject → book chips load from Aura → upload PDF → **Verify**
+4. **Generate paper** link → `/notes/generate` → paper type + difficulty → **Generate**
 
 ---
 
-*Last updated: 2026-06-06 — Phase 7b Notes Verification UI v1 committed (`a50a59b`).*
+*Last updated: 2026-06-07 — Phase 7c Question Paper Graph RAG (verify, generate, NCERT ingest, curriculum availability).*

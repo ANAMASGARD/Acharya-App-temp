@@ -5,34 +5,37 @@ const SUBJECT_MAP = Object.fromEntries(
   RECORDER_SUBJECTS.map((subject) => [subject.id, subject.label]),
 ) as Record<string, string>;
 
-const CLASS_SUBJECT_IDS: Record<string, readonly string[]> = {
-  "class-7": ["mathematics", "science"],
-  "class-8": ["mathematics", "science"],
-  "class-9": ["mathematics", "science", "social-science"],
-  "class-10": ["mathematics", "science", "social-science"],
-  "class-11": ["physics", "chemistry", "mathematics"],
-  "class-12": ["physics", "chemistry", "biology"],
+/**
+ * Exactly two subjects per class in the curriculum sheet:
+ * 1) Primary — embedded in Aura when available (English for most; Science for class 6)
+ * 2) Placeholder — always shown as Coming soon until more books are added
+ */
+const CLASS_SUBJECT_PAIRS: Record<string, readonly [string, string]> = {
+  "class-2": ["english", "mathematics"],
+  "class-3": ["english", "science"],
+  "class-4": ["english", "science"],
+  "class-5": ["english", "science"],
+  "class-6": ["science", "english"],
+  "class-7": ["english", "science"],
+  "class-8": ["english", "science"],
+  "class-9": ["english", "science"],
+  "class-10": ["english", "science"],
+  "class-11": ["english", "physics"],
+  "class-12": ["english", "physics"],
 };
 
-const CLASS_IDS = new Set([
-  "class-7",
-  "class-8",
-  "class-9",
-  "class-10",
-  "class-11",
-  "class-12",
-]);
+const CLASS_IDS = new Set(Object.keys(CLASS_SUBJECT_PAIRS));
 
 function buildClass(classId: string, label: string): CurriculumClass {
-  const subjectIds = CLASS_SUBJECT_IDS[classId] ?? [];
+  const pair = CLASS_SUBJECT_PAIRS[classId] ?? [];
 
   return {
     id: classId,
     label,
-    subjects: subjectIds.map((subjectId) => ({
+    subjects: pair.map((subjectId) => ({
       id: subjectId,
       label: SUBJECT_MAP[subjectId] ?? subjectId,
-      status: "pending",
+      status: "coming_soon",
     })),
   };
 }

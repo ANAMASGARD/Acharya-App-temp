@@ -1,0 +1,16 @@
+{
+  "description": "One NCERT textbook per class for Acharya demo. subject + slug define the folder: books/class-N/<subject>/<slug>/",
+  "books": [
+    { "classNum": 2, "subject": "english", "slug": "marigold", "title": "Marigold", "zipCode": "been1dd" },
+    { "classNum": 3, "subject": "english", "slug": "marigold", "title": "Marigold", "zipCode": "ceen1dd" },
+    { "classNum": 4, "subject": "english", "slug": "marigold", "title": "Marigold", "zipCode": "deen1dd" },
+    { "classNum": 5, "subject": "english", "slug": "marigold", "title": "Marigold", "zipCode": "eeen1dd" },
+    { "classNum": 6, "subject": "science", "slug": "curiosity", "title": "Curiosity", "zipCode": "fecu1dd" },
+    { "classNum": 7, "subject": "english", "slug": "an-alien-hand", "title": "An Alien Hand", "zipCode": "geah1dd" },
+    { "classNum": 8, "subject": "english", "slug": "honeydew", "title": "Honeydew", "zipCode": "hehd1dd" },
+    { "classNum": 9, "subject": "english", "slug": "beehive", "title": "Beehive", "zipCode": "iebe1dd" },
+    { "classNum": 10, "subject": "english", "slug": "first-flight", "title": "First Flight", "zipCode": "jeff1dd" },
+    { "classNum": 11, "subject": "english", "slug": "hornbill", "title": "Hornbill", "zipCode": "kehb1dd" },
+    { "classNum": 12, "subject": "english", "slug": "flamingo", "title": "Flamingo", "zipCode": "lefl1dd" }
+  ]
+}
