@@ -228,6 +228,129 @@ export async function analyzeTeachingTranscript(input: {
   }
 }
 
+export type OpenRouterChatMessage = Readonly<{
+  role: "system" | "user" | "assistant";
+  content: string;
+}>;
+
+export async function streamChatCompletion(input: {
+  messages: OpenRouterChatMessage[];
+  onDelta: (chunk: string) => void;
+  signal?: AbortSignal;
+}): Promise<string> {
+  let config: ReturnType<typeof getOpenRouterConfig>;
+
+  try {
+    config = getOpenRouterConfig();
+  } catch (error) {
+    if (error instanceof OpenRouterConfigError) {
+      throw Object.assign(new Error(error.message), {
+        mapped: mapConfigError(error),
+      });
+    }
+
+    throw error;
+  }
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://acharya.app",
+      "X-Title": "Acharya Chat Coach",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: input.messages,
+      stream: true,
+    }),
+    signal: input.signal,
+  });
+
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    const mapped = mapOpenRouterError(response.status, payload);
+    throw Object.assign(new Error(mapped.userMessage), { mapped });
+  }
+
+  const reader = response.body?.getReader();
+
+  if (!reader) {
+    throw Object.assign(new Error("Chat stream is unavailable."), {
+      mapped: {
+        code: "provider_unreachable" as const,
+        httpStatus: 502,
+        userMessage: "Chat stream is unavailable. Try again.",
+      },
+    });
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullText = "";
+
+  while (true) {
+    if (input.signal?.aborted) {
+      throw new DOMException("Chat stream aborted", "AbortError");
+    }
+
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      if (!trimmed.startsWith("data:")) {
+        continue;
+      }
+
+      const data = trimmed.replace(/^data:\s*/, "");
+
+      if (data === "[DONE]") {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(data) as {
+          choices?: { delta?: { content?: string } }[];
+        };
+        const delta = parsed.choices?.[0]?.delta?.content;
+
+        if (typeof delta === "string" && delta.length > 0) {
+          fullText += delta;
+          input.onDelta(delta);
+        }
+      } catch {
+        // ignore malformed SSE chunks
+      }
+    }
+  }
+
+  if (input.signal?.aborted) {
+    throw new DOMException("Chat stream aborted", "AbortError");
+  }
+
+  if (!fullText.trim()) {
+    throw Object.assign(new Error("Coach returned an empty response."), {
+      mapped: {
+        code: "schema_invalid" as const,
+        httpStatus: 502,
+        userMessage: "Coach returned an empty response. Try again.",
+      },
+    });
+  }
+
+  return fullText;
+}
+
 export function getOpenRouterMappedError(error: unknown): MappedOpenRouterError {
   if (error instanceof OpenRouterConfigError) {
     return mapConfigError(error);

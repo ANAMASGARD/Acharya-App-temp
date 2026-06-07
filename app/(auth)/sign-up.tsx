@@ -104,7 +104,7 @@ export default function SignUpScreen(): React.ReactElement {
   };
 
   if (isSignedIn) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href="/(tabs)/recorder" />;
   }
 
   return (

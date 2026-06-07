@@ -13,7 +13,7 @@ export default function AuthLayout(): React.ReactElement | null {
   }
 
   if (isSignedIn) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href="/(tabs)/recorder" />;
   }
 
   return (

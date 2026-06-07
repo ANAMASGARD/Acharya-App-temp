@@ -11,229 +11,198 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 6b — Record → Analyze → Calendar** ✅ **complete (`8a512d2` on `dev`)** |
-| **Previous phases** | Phase 6 calendar (`9284a51`), Phase 5b recorder (`bbeb082`) |
+| **Phase** | **Phase 7b — Notes Verification UI v1** ✅ **committed** (`a50a59b`) |
+| **Previous phases** | Phase 7 Chat Acharya (`4e652bc`), Phase 6b analyze + calendar (`d692ea9`) |
 | **Branch** | `dev` |
-| **Runnable in Expo Go?** | Yes — recorder + calendar verified; see **§10 Dev workflow** |
-| **Last committed feature** | OpenRouter class analysis, Aura report persistence, Neo-Brutal Class Reflection UI, env-driven AI config |
+| **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes upload UI verified |
+| **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
 
-### What works today (if `.env` is configured)
+### What works today
 
-**Auth (needs `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` only)**
+**Notes Verification UI v1 (`/notes/upload`) ✅**
 
-- Onboarding, Sign Up / Sign In, OTP, OAuth — unchanged from prior phases
-- Language gate + SecureStore prefs — unchanged
+- Neo-Brutal screen from `prompt_material/09-notes-verify.png`: upload zone, gaps timeline, curriculum sheet
+- **PDF/DOC pick** via `expo-document-picker` + client MIME/extension validation
+- **Upload Notes** / disabled **Verify Notes** (backend pending) with teacher-facing copy
+- **Curriculum bottom sheet** — blur backdrop (same pattern as chat drawer), class accordion, subjects, upload book row
+- **Teaching classes** in Profile — multi-select persisted; sheet filters to those classes only
+- **Selection banner** with clear (×); animated horizontal red menu dots on header
+- Demo gap cards until `POST /api/notes/verify` + Aura GraphRAG lands
 
-**Tab navigation (`app/(tabs)/`)**
+**Chat Acharya (`/(tabs)/chat` — Phase 7) ✅** — unchanged; Upload pill → `/notes/upload`
 
-- Home, Profile — implemented
-- **Calendar tab** — **full teaching calendar** with analyzed sessions only
-- **Recorder tab** — **full live pipeline** with Class Reflection after Send
-- Chat — placeholder
+**Recorder, Calendar, Auth, Profile** — unchanged from Phase 7 memory
 
-**Teaching Calendar (`/(tabs)/calendar` — Phase 6 + 6b) ✅**
+**Not built yet**
 
-- Neo-Brutal month picker with session dots on recorded days
-- **Only sessions with `HAS_REPORT`** in Aura (no ghost 0-min cards)
-- Date-filtered session cards: subject/class pills, time, duration, **score badge**
-- `useFocusEffect` refresh when tab focused + pull-to-refresh
-- Session detail modal — **yellow header**, colored Class Reflection sections (matches design ref)
-- Empty states: no sessions ever / no sessions on selected day → Go to Recorder
-- **Bookmark toggle** per session (SecureStore via `calendar-store`)
+- `POST /api/notes/verify` — chunk, embed, vector search, Gemini gaps → `VerificationReport` on Aura
+- Enable **Verify Notes** when file + class + subject + API healthy
+- Home `NotesGapsCard` CTA → `/notes/upload`
+- Chat **Voice** pill → Sarvam conversational agent
+- Live Home data from Aura
 
-**Recorder (`/(tabs)/recorder` — Phase 5b + 6b) ✅**
-
-End-to-end flow verified in Expo Go (foreground):
-
-1. Teacher fills **topic / subject / class** → taps yellow **Record**
-2. Mic goes live → timer runs → **Stop**
-3. **Class Transcribe** card shows Sarvam transcript
-4. **Send** → OpenRouter teaching coach → **Class Reflection** panel (shared UI component)
-5. Session appears on Calendar after analysis (score + report in Aura)
-
-**Sarvam STT — working**
-
-- Per-chunk REST STT via `POST /api/sarvam/stt`
-- Model from env: `SARVAM_STT_MODEL` (e.g. `saaras:v3`) via `lib/ai-config.ts`
-- Auto language detection — Hindi/English/Marathi/etc.
-
-**OpenRouter analysis — working (env-driven)**
-
-- Model from env: `OPENROUTER_MODEL` only — **no hardcoded model IDs in app code**
-- `lib/ai-config.ts` — single source for `OPENROUTER_*` and `SARVAM_*` env
-- `POST /api/recorder/analyze` → truth-seeking coach prompt → structured JSON + `overallScore`
-- Persists `(Session)-[:HAS_TRANSCRIPT]->(Transcript)` and `(Session)-[:HAS_REPORT]->(Report)` + `s.score`
-- Short-transcript guard (min 50 chars); no silent mock when API key missing
-- Free models may return HTTP 429 rate limit from OpenRouter upstream — not a code bug
-
-**AuraDB (needs full `.env`)**
-
-- Calendar list: `listSessionsByTeacher` filters `HAS_REPORT` only
-- Session detail: `getSessionDetail` with report + transcript preview
-- CLI scripts: `verify:neo4j`, `neo4j:test`, `neo4j:test-api`
-
-**Validation (last run — 2026-06-06):**
-
-- `npm run lint` — pass
-- `npx tsc --noEmit` — pass
-
-### Not built yet
-
-- Chat Acharya, notes verification (RAG)
-- Live Home data from Aura (dashboard static placeholders cleared; streak/activity empty)
-- Background / screen-off recording polish (dev build milestone)
-- True **system audio** capture (requires custom native build)
+**Validation (last run — 2026-06-06):** `npm run lint` + `npx tsc --noEmit` — pass
 
 ---
 
 ## 2. Project Phase Map
 
 ```
-Phase 0  Bootstrap          ✅ committed   Expo 54 shell, AGENTS.md
-Phase 1  Design system      ✅ committed   theme/, global.css, fonts
-Phase 2  Onboarding         ✅ committed   /onboarding
-Phase 3  Auth + AuraDB      ✅ committed   Clerk, API routes, Neo4j graph
-Phase 3.5 Language pick     ✅ committed   `/language`, SecureStore prefs
-Phase 3.6 Tab navigation    ✅ committed   custom bar, Lottie mic + settings
-Phase 4  Home dashboard     ✅ committed   `849c971`
-Phase 4b Profile/Settings   ✅ committed   `8da15e7`
-Phase 5  Recorder UI        ✅ committed   `58e1274`
-Phase 5b Recorder pipeline  ✅ committed   `bbeb082` — Sarvam STT, OpenRouter → Aura
-Phase 6  Teaching calendar  ✅ committed   `9284a51` — Aura session history, bookmarks
-Phase 6b Analyze + reflect  ✅ this commit OpenRouter coach, score, Class Reflection UI
-Phase 7  Core product       ⬜ planned     chat, notes RAG, Home from Aura
+Phase 0–6b   … prior phases (see §6 Commit Log)
+Phase 7      Chat Acharya       ✅ 4e652bc
+Phase 7b     Notes verify UI    ✅ a50a59b — UI v1; backend RAG ⬜ next
+Phase 7c     Notes RAG API      ⬜ planned — Aura Chunk + VerificationReport
 ```
 
 ---
 
 ## 3. Architecture Snapshot
 
-### Record → Analyze → Calendar flow (Phase 6b)
+### Notes verification UI (Phase 7b — client only)
 
 ```
-Recorder tab
-  hooks/use-recorder.ts
-    ├── POST /api/sessions (create Session)
-    ├── POST /api/sarvam/stt (per-chunk STT)
-    └── POST /api/recorder/analyze (Send)
-          ├── lib/ai-config.ts → OPENROUTER_MODEL from .env
-          ├── lib/prompts/teaching-analysis.ts (coach prompt)
-          ├── lib/openrouter.ts (json_schema + one retry)
-          └── lib/graph/recorder.ts → saveTranscriptAndReport + s.score
+Chat header Upload pill
+  → app/notes/upload.tsx (thin route)
+  → components/verification/notes-upload-screen.tsx
+       ├── hooks/use-notes-upload.ts → expo-document-picker
+       ├── hooks/use-curriculum-selection.ts → sheet + subject selection state
+       ├── store/preferences-store.ts → teachingClassIds (filter sheet)
+       ├── components/verification/upload-drop-zone.tsx
+       ├── components/verification/verification-gaps-timeline.tsx (demo data)
+       └── components/verification/curriculum-select-sheet.tsx (blur + slide)
 
-Calendar tab
-  hooks/use-calendar-sessions.ts (useFocusEffect refresh)
-    └── GET /api/sessions
-          └── lib/graph/session.ts → HAS_REPORT filter only
+Profile → app/profile/teaching-classes.tsx
+  → components/profile/teaching-classes-screen.tsx → setTeachingClassIds
 ```
 
-### Calendar — code map
+### Future backend (not implemented)
 
 ```
-Teacher UI
-  app/(tabs)/calendar.tsx
-    └── components/calendar/calendar-screen.tsx
-          ├── TeachingCalendar
-          ├── SessionCard (score badge, bookmark, View Details)
-          ├── SessionDetailModal (yellow header, ClassReflectionSections)
-          └── class-reflection-sections.tsx (shared with recorder report)
-
-Data
-  hooks/use-calendar-sessions.ts
-  store/calendar-store.ts (bookmarks)
-
-Backend
-  lib/graph/session.ts — listSessionsByTeacher (HAS_REPORT), getSessionDetail
-  lib/graph/recorder.ts — saveTranscriptAndReport
-  app/api/recorder/analyze+api.ts
-  app/api/sessions+api.ts
+POST /api/notes/verify (multipart: file, classId, subjectId, clerkId)
+  → extract → chunk → embed → MERGE Chunk
+  → (Teacher)-[:UPLOADED]->(noteChunk)
+  → vector index chunk_embedding + IN_CHAPTER traverse
+  → Gemini structured gaps → VerificationReport
+  → (Teacher)-[:REQUESTED]->(VerificationReport)-[:CHECKED_AGAINST]->(Chunk)
 ```
 
-### AI config — code map
+See [`neo4j/graph-model.md`](../neo4j/graph-model.md).
 
-```
-lib/ai-config.ts          ← ONLY place to read model env vars
-  OPENROUTER_MODEL        → lib/openrouter.ts
-  OPENROUTER_API_KEY
-  SARVAM_STT_MODEL        → lib/sarvam.ts
-  SARVAM_API_KEY
-```
+### Routes (Expo Router) — notes + profile additions
 
-### Routes (Expo Router)
-
-| Route | File | Notes |
-|-------|------|-------|
-| `/(tabs)/calendar` | `app/(tabs)/calendar.tsx` | Analyzed sessions only |
-| `/(tabs)/recorder` | `app/(tabs)/recorder.tsx` | Send → Class Reflection |
-| `/api/sessions` | `app/api/sessions+api.ts` | List, detail, create, PATCH duration |
-| `/api/sarvam/stt` | `app/api/sarvam/stt+api.ts` | Per-chunk Sarvam STT |
-| `/api/recorder/analyze` | `app/api/recorder/analyze+api.ts` | OpenRouter coach report |
+| Route | File | Role |
+|-------|------|------|
+| `/notes/upload` | `app/notes/upload.tsx` | Compose `NotesUploadScreen` |
+| `/profile/teaching-classes` | `app/profile/teaching-classes.tsx` | Multi-select teaching grades |
 
 ---
 
-## 4. Current State (working tree)
+## 4. File map — Notes Verification (Phase 7b)
 
-> **Status:** Phase 6b committed on `dev` (`8a512d2`). Working tree clean.
+### Routes (`app/`)
 
-### Phase 6b decisions
+| File | Code |
+|------|------|
+| `app/notes/upload.tsx` | Default export → `<NotesUploadScreen />` only |
+| `app/profile/teaching-classes.tsx` | Default export → `<TeachingClassesScreen />` |
+
+### Components (`components/verification/`)
+
+| File | Responsibility |
+|------|----------------|
+| `notes-upload-screen.tsx` | SafeArea, header (back + title + red ⋯), selection banner w/ clear, ScrollView, wires hooks + sheet |
+| `upload-drop-zone.tsx` | Dashed tappable zone, file preview (name + size), Upload Notes / disabled Verify Notes, error banner |
+| `verification-gaps-timeline.tsx` | Section title + dashed rail + maps `VerificationGap[]` |
+| `verification-gap-card.tsx` | Coral / coralLight / neutral Neo-Brutal cards + `mascotChecklist` |
+| `curriculum-select-sheet.tsx` | Modal: Reanimated blur backdrop + spring slide-up sheet; class accordion; upload book; empty state → settings |
+| `animated-menu-dots.tsx` | Horizontal pulsing dots (Reanimated) in red header button |
+
+### Components (`components/profile/`)
+
+| File | Responsibility |
+|------|----------------|
+| `teaching-classes-screen.tsx` | Checkbox list Class 6–12, summary card, Save → `setTeachingClassIds` |
+| `profile-screen.tsx` | **Modified:** App settings row **Select classes** → `/profile/teaching-classes` + subtitle |
+
+### Hooks
+
+| File | Responsibility |
+|------|----------------|
+| `hooks/use-notes-upload.ts` | `DocumentPicker.getDocumentAsync`, validate, `selectedFile` / `error` / `canVerify: false` |
+| `hooks/use-curriculum-selection.ts` | Sheet visibility, expanded class, `selection`, `uploadedBookName`, clear selection |
+
+### Lib / types / data
+
+| File | Responsibility |
+|------|----------------|
+| `lib/notes-file-validation.ts` | `ACCEPTED_NOTE_*`, `isAcceptedNotesFile`, `formatFileSize`, `normalizePickerAsset` |
+| `lib/teaching-classes.ts` | `getTeachingClassesForCurriculum`, `formatTeachingClassesSummary` |
+| `types/notes-verification.ts` | `VerificationGap`, `NotesUploadFile`, `NotesUploadError` |
+| `types/curriculum.ts` | `CurriculumClass`, `CurriculumSelection`, subject status |
+| `data/curriculum-catalog.ts` | Class 7–12 → subject lists (from recorder options) |
+| `data/notes-verification-demo.ts` | `DEMO_VERIFICATION_GAPS` for timeline placeholder |
+
+### Store
+
+| File | Change |
+|------|--------|
+| `store/preferences-store.ts` | `teachingClassIds: string[]`, `setTeachingClassIds`, `toggleTeachingClass` — persisted |
+
+### Dependencies
+
+| Package | Use |
+|---------|-----|
+| `expo-document-picker` ~14.0.8 | Notes file pick + curriculum book pick |
+
+### Chat entry (unchanged)
+
+| File | Link |
+|------|------|
+| `components/chat/chat-header.tsx` | Red **Upload** pill → `router.push("/notes/upload")` |
+
+---
+
+## 5. Current State
+
+> **Status:** Phase 7b Notes Verification UI v1 committed (`a50a59b`). Next: `POST /api/notes/verify` + Aura GraphRAG.
+
+### Phase 7b decisions
 
 | Topic | Implementation |
 |-------|----------------|
-| LLM model source | `OPENROUTER_MODEL` in `.env` only — `lib/ai-config.ts` |
-| STT model source | `SARVAM_STT_MODEL` in `.env` only — `lib/ai-config.ts` |
-| No silent OpenRouter mock | Missing key → `auth_config` error surfaced in recorder UI |
-| Calendar ghost sessions | Cypher filter: `(Session)-[:HAS_REPORT]->(:Report)` |
-| Report shape | 4 reflection fields + `overallScore` 0–100 |
-| Score on Session | `s.score` written on analyze; badge on session card |
-| Shared reflection UI | `class-reflection-sections.tsx` — recorder + calendar modal |
-| Calendar refresh | `useFocusEffect` + pull-to-refresh |
-| Transcript guard | Min 50 chars before OpenRouter call (422) |
-
----
-
-## 5. Stack (installed)
-
-| Layer | Technology |
-|-------|------------|
-| Framework | Expo SDK 54, Expo Router, React 19 |
-| Styling | NativeWind v5 + StyleSheet |
-| Auth | Clerk `@clerk/expo` + `@clerk/backend` |
-| State | Zustand — `preferences-store`, `recorder-store`, `calendar-store` |
-| Recording | `expo-audio`, `expo-file-system` |
-| STT | Sarvam via `SARVAM_STT_MODEL` env (server only) |
-| Analysis | OpenRouter via `OPENROUTER_MODEL` env (server only) |
-| Database | Neo4j AuraDB — Session, AudioChunk, Transcript, Report |
+| Teacher copy | **Upload Notes** / **Verify Notes** — not "RAG upload" |
+| Verify CTA | Disabled until API; helper: *Verification coming soon — your file is ready.* |
+| File validation | Picker MIME filter + extension/MIME re-check client-side |
+| Teaching classes | Profile multi-select → filters curriculum sheet only |
+| Curriculum sheet | Same blur animation as chat history drawer (`AnimatedBlurView`, spring sheet) |
+| Menu button | Red square, **horizontal** animated dots |
+| Selection UX | Mint banner + × to clear class/subject |
+| Backend | **None yet** — demo gaps, local file + selection state only |
 
 ---
 
 ## 6. Commit Log (oldest → newest)
 
-### `58e1274` — feat: core recorder screen UI with simulated record state (Phase 5)
+### `a50a59b` — feat: Notes verification upload UI with curriculum sheet and class settings
 
-### `2608fe9` — docs: mark Phase 5 recorder UI committed in project memory
+- Neo-Brutal `/notes/upload` from design ref `09-notes-verify.png`
+- `expo-document-picker`, validation lib, upload drop zone, demo gaps timeline
+- Curriculum bottom sheet (blur + slide), class/subject accordion, upload book row
+- Profile **Select classes** (multi-select persisted) filters curriculum popup
+- Animated horizontal menu dots; selection banner with clear
 
-### `bbeb082` — feat: live recorder pipeline with Sarvam STT and OpenRouter coach reports
-
-### `9284a51` — feat: teaching calendar with Aura session history and bookmarked cards
-
-### `31d327d` — docs: record Phase 6 calendar commit hash in project memory
-
-### `8a512d2` — feat: wire OpenRouter class analysis to Aura and calendar Class Reflection UI
-
-- Port truth-seeking coach prompt from reference web app + `overallScore`
-- `lib/ai-config.ts` — env-only model config (no hardcoded LLM/STT model IDs)
-- Calendar shows analyzed sessions only; score badge; focus refresh
-- Neo-Brutal Class Reflection sections (shared recorder + modal)
-- Short-transcript guard; persist score on Session node in Aura
+### `4e652bc` — feat: Chat Acharya with Aura graph, voice input, and Neo-Brutal coach UI
 
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Wire Home to Aura** — replace static `data/home-dashboard.ts` with live session stats
-2. **Chat Acharya** — in-app coach (Sarvam voice + backend LLM via `ai-config`)
-3. **Notes verification UI** — RAG on Aura vector index
-4. **Dev build** — background recording + optional system-audio native module
+1. **`POST /api/notes/verify`** — multipart upload, Clerk auth, chunk + embed + Aura writes
+2. **`lib/graph/notes.ts`** — MERGE `Chunk`, `VerificationReport`, relationships
+3. **Enable Verify Notes** — when file + curriculum selection + API ready
+4. **Replace demo gaps** — live `VerificationGap[]` from Gemini response
+5. **Wire Home `NotesGapsCard`** → `/notes/upload`
+6. **Chat voice agent** — Voice pill → Sarvam conversational agent
 
 ---
 
@@ -241,9 +210,9 @@ lib/ai-config.ts          ← ONLY place to read model env vars
 
 When you finish a meaningful commit:
 
-1. Move **§4 Current State** into **§6 Commit Log** with hash + subject.
-2. Reset **§4** or note new in-progress work.
-3. Update **§1 Quick Read**, **§2 Phase Map**, **§3** if needed.
+1. Move **§5 Current State** detail into **§6 Commit Log** with hash + subject.
+2. Reset **§5** for new in-progress work.
+3. Update **§1**, **§2**, **§3**, **§4** if routes or file map changed.
 
 ---
 
@@ -251,42 +220,36 @@ When you finish a meaningful commit:
 
 | File | Screen |
 |------|--------|
-| `prompt_material/06-teaching-calendar.png` | Calendar + Class Reflection modal — **implemented** |
+| `prompt_material/09-notes-verify.png` | Notes upload + gaps timeline — **UI v1 implemented** |
+| `prompt_material/06-teaching-calendar.png` | Calendar — implemented |
 | `prompt_material/05-core-recorder.png` | Recorder — implemented |
 | `prompt_material/04-home-dashboard.png` | Home — implemented |
-| `prompt_material/09-notes-verify.png` | Notes verification — planned |
 
 ---
 
-## 10. Dev workflow (Expo Go on Android)
-
-### Required `.env` (server AI)
-
-```env
-OPENROUTER_API_KEY=...
-OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free   # change model here only
-SARVAM_API_KEY=...
-SARVAM_STT_MODEL=saaras:v3
-```
-
-Restart after changes: `npx expo start --clear`
-
-### Recorder → Calendar test checklist
-
-1. Record 30–60s → Stop → wait for transcript → **Send**
-2. Class Reflection panel appears with 4 colored sections + score
-3. Open **Calendar** tab — session on today with score badge
-4. **View Details** — yellow header modal with full reflection
+## 10. Dev workflow
 
 ### Commands
 
-| Scenario | Command |
-|----------|---------|
-| Expo Go | `npm run start:go -- --clear` |
-| Lint + types | `npm run lint && npx tsc --noEmit` |
-| Aura health | `npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api` |
-| Apply schema | `npm run neo4j:apply-schema` |
+```bash
+npm run lint && npx tsc --noEmit
+npm run start:go -- --clear
+```
+
+### Notes verification test checklist
+
+1. **Profile → Select classes** → pick Class 9, 10, 12 → Save
+2. **Chat → Upload** → Verify Lesson Notes screen
+3. Tap dashed zone or **Upload Notes** → pick PDF → name + size shown
+4. Tap red **⋯** → blur backdrop + sheet; only saved classes listed
+5. Expand class → tap subject → sheet closes; mint banner with × clear
+6. **Upload book** row in sheet → document picker
+7. **Verify Notes** stays disabled with helper text
+
+### Chat test checklist
+
+Unchanged — see Phase 7 memory (composer, mic STT, history drawer blur).
 
 ---
 
-*Last updated: 2026-06-06 — Phase 6b `8a512d2` on `dev`.*
+*Last updated: 2026-06-06 — Phase 7b Notes Verification UI v1 committed (`a50a59b`).*

@@ -11,6 +11,7 @@ export const AI_ENV = {
   OPENROUTER_MODEL: "OPENROUTER_MODEL",
   SARVAM_API_KEY: "SARVAM_API_KEY",
   SARVAM_STT_MODEL: "SARVAM_STT_MODEL",
+  SARVAM_TTS_MODEL: "SARVAM_TTS_MODEL",
 } as const;
 
 export type OpenRouterConfig = Readonly<{
@@ -21,6 +22,7 @@ export type OpenRouterConfig = Readonly<{
 export type SarvamConfig = Readonly<{
   apiKey: string;
   sttModel: string;
+  ttsModel: string;
 }>;
 
 export class AiConfigError extends Error {
@@ -78,6 +80,7 @@ export function getOpenRouterConfig(): OpenRouterConfig {
 export function getSarvamConfig(): SarvamConfig | null {
   const apiKey = readEnv(AI_ENV.SARVAM_API_KEY);
   const sttModel = readEnv(AI_ENV.SARVAM_STT_MODEL);
+  const ttsModel = readEnv(AI_ENV.SARVAM_TTS_MODEL) ?? "bulbul:v3";
 
   if (!apiKey) {
     return null;
@@ -90,5 +93,21 @@ export function getSarvamConfig(): SarvamConfig | null {
     );
   }
 
-  return { apiKey, sttModel };
+  return { apiKey, sttModel, ttsModel };
+}
+
+/**
+ * Sarvam settings for chat voice features — throws when API key is missing.
+ */
+export function requireSarvamConfig(): SarvamConfig {
+  const config = getSarvamConfig();
+
+  if (!config) {
+    throw new AiConfigError(
+      "sarvam",
+      "Voice service is not configured. Add SARVAM_API_KEY to .env and restart the server.",
+    );
+  }
+
+  return config;
 }

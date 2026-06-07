@@ -98,7 +98,7 @@ export default function LanguageSelectionScreen(): React.ReactElement {
 
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedLanguage(draftSelectionId);
-    router.replace("/(tabs)");
+    router.replace("/(tabs)/recorder");
   };
 
   if (!isLoaded || !isReady) {

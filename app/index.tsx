@@ -32,5 +32,5 @@ export default function IndexGate(): React.ReactElement {
     return <Redirect href="/language" />;
   }
 
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href="/(tabs)/recorder" />;
 }

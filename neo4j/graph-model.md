@@ -17,6 +17,8 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `Chunk` | `chunkId` | Text chunk (+ `embedding` for vector search) |
 | `VerificationReport` | `verificationId` | Notes verification output |
 | `AudioChunk` | `chunkId` | Per-chunk STT text during recording |
+| `ChatConversation` | `conversationId` | In-app Chat Acharya thread (`contextSnapshot` set once at create) |
+| `ChatMessage` | `messageId` | User or assistant message in a conversation |
 
 ## Relationships (feature-driving)
 
@@ -32,6 +34,8 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `(Teacher)-[:UPLOADED]->(Chunk)` | Teacher notes chunks |
 | `(Teacher)-[:REQUESTED]->(VerificationReport)` | Notes verification history |
 | `(VerificationReport)-[:CHECKED_AGAINST]->(Chunk)` | Graph trace for judges / demo |
+| `(Teacher)-[:HAS_CONVERSATION]->(ChatConversation)` | Chat Acharya history per teacher |
+| `(ChatConversation)-[:HAS_MESSAGE]->(ChatMessage)` | Ordered chat turns |
 
 ## Example queries (live Aura — not mocks)
 
@@ -53,6 +57,16 @@ MATCH (chunk)-[:IN_CHAPTER]->(ch:Chapter)-[:PART_OF]->(book:CurriculumBook)
 WHERE book.subject = $subject AND book.classLevel = $classLevel
 RETURN chunk, ch, book, score
 ORDER BY score DESC
+```
+
+**Chat Acharya — conversation messages:**
+
+```cypher
+MATCH (t:Teacher { clerkId: $clerkId })-[:HAS_CONVERSATION]->(c:ChatConversation { conversationId: $conversationId })
+MATCH (c)-[:HAS_MESSAGE]->(m:ChatMessage)
+RETURN m.messageId, m.role, m.content, m.createdAt
+ORDER BY m.createdAt ASC
+LIMIT 50
 ```
 
 **Notes verification path:**
