@@ -11,7 +11,7 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, notes verification) |
-| **Phase** | **Phase 7b — Notes Verification UI v1** ✅ ready to commit (backend RAG pending) |
+| **Phase** | **Phase 7b — Notes Verification UI v1** ✅ **committed** (`a50a59b`) |
 | **Previous phases** | Phase 7 Chat Acharya (`4e652bc`), Phase 6b analyze + calendar (`d692ea9`) |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes upload UI verified |
@@ -50,7 +50,7 @@
 ```
 Phase 0–6b   … prior phases (see §6 Commit Log)
 Phase 7      Chat Acharya       ✅ 4e652bc
-Phase 7b     Notes verify UI    ✅ UI v1 (this commit) — backend RAG ⬜ next
+Phase 7b     Notes verify UI    ✅ a50a59b — UI v1; backend RAG ⬜ next
 Phase 7c     Notes RAG API      ⬜ planned — Aura Chunk + VerificationReport
 ```
 
@@ -164,7 +164,7 @@ See [`neo4j/graph-model.md`](../neo4j/graph-model.md).
 
 ## 5. Current State
 
-> **Status:** Phase 7b Notes Verification **UI v1** complete on `dev`. Next: `POST /api/notes/verify` + Aura GraphRAG.
+> **Status:** Phase 7b Notes Verification UI v1 committed (`a50a59b`). Next: `POST /api/notes/verify` + Aura GraphRAG.
 
 ### Phase 7b decisions
 
@@ -183,15 +183,15 @@ See [`neo4j/graph-model.md`](../neo4j/graph-model.md).
 
 ## 6. Commit Log (oldest → newest)
 
-### `4e652bc` — feat: Chat Acharya with Aura graph, voice input, and Neo-Brutal coach UI
-
-### *(pending)* — feat: Notes verification upload UI with curriculum sheet and teaching class settings
+### `a50a59b` — feat: Notes verification upload UI with curriculum sheet and class settings
 
 - Neo-Brutal `/notes/upload` from design ref `09-notes-verify.png`
 - `expo-document-picker`, validation lib, upload drop zone, demo gaps timeline
 - Curriculum bottom sheet (blur + slide), class/subject accordion, upload book row
 - Profile **Select classes** (multi-select persisted) filters curriculum popup
 - Animated horizontal menu dots; selection banner with clear
+
+### `4e652bc` — feat: Chat Acharya with Aura graph, voice input, and Neo-Brutal coach UI
 
 ---
 
@@ -252,4 +252,4 @@ Unchanged — see Phase 7 memory (composer, mic STT, history drawer blur).
 
 ---
 
-*Last updated: 2026-06-06 — Phase 7b Notes Verification UI v1 (pre-commit).*
+*Last updated: 2026-06-06 — Phase 7b Notes Verification UI v1 committed (`a50a59b`).*
