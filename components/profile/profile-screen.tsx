@@ -8,6 +8,7 @@ import { legalLinks } from "@/constants/legal";
 import { useProfileAccount } from "@/hooks/use-profile-account";
 import { useProfilePhoto } from "@/hooks/use-profile-photo";
 import { useProfileSummary } from "@/hooks/use-profile-summary";
+import { formatTeachingClassesSummary } from "@/lib/teaching-classes";
 import { usePreferencesStore } from "@/store/preferences-store";
 import { colors } from "@/theme/colors";
 import { borderWidths, radii, spacing } from "@/theme/tokens";
@@ -46,6 +47,8 @@ export function ProfileScreen(): React.ReactElement {
   const setPushEnabled = usePreferencesStore(
     (state) => state.setPushNotificationsEnabled,
   );
+  const teachingClassIds = usePreferencesStore((state) => state.teachingClassIds);
+  const teachingClassesSummary = formatTeachingClassesSummary(teachingClassIds);
 
   const [editNameVisible, setEditNameVisible] = useState(false);
 
@@ -176,6 +179,13 @@ export function ProfileScreen(): React.ReactElement {
               onPress={() => router.push("/language")}
               showDivider
               subtitle={summary.teachingLanguageLabel}
+            />
+            <ProfileMenuRow
+              icon="school-outline"
+              label="Select classes"
+              onPress={() => router.push("/profile/teaching-classes")}
+              showDivider
+              subtitle={teachingClassesSummary}
             />
             <ProfileToggleRow
               icon="bell-outline"
