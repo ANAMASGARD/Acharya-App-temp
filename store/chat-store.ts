@@ -1,5 +1,8 @@
+import { apiFetch } from "@/lib/api-client";
 import { preferencesPersistStorage } from "@/lib/preferences-persist-storage";
-import type { ChatMessage, ChatReplyPhase } from "@/types/chat";
+import type { ChatConversation, ChatMessage, ChatReplyPhase } from "@/types/chat";
+import type { FetchOptions, GetToken } from "@/types/async-resource";
+import { isStale } from "@/types/async-resource";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -7,7 +10,17 @@ export const CHAT_CONVERSATION_PERSIST_KEY = "acharya-chat-conversation-id";
 
 type MessageCache = Readonly<Record<string, ChatMessage[]>>;
 
-type ChatState = {
+type ConversationResponse = Readonly<{
+  conversation: ChatConversation | null;
+  messages: ChatMessage[];
+}>;
+
+type FetchConversationOptions = FetchOptions &
+  Readonly<{
+    conversationId?: string | null;
+  }>;
+
+type ChatState = Readonly<{
   conversationId: string | null;
   messages: ChatMessage[];
   messageCache: MessageCache;
@@ -16,6 +29,8 @@ type ChatState = {
   isStreaming: boolean;
   replyPhase: ChatReplyPhase;
   error: string | null;
+  lastFetchedAt: number | null;
+  fetchPromise: Promise<void> | null;
   setConversationId: (conversationId: string | null) => void;
   setMessages: (messages: ChatMessage[]) => void;
   appendMessage: (message: ChatMessage) => void;
@@ -26,8 +41,13 @@ type ChatState = {
   setReplyPhase: (phase: ChatReplyPhase) => void;
   setError: (value: string | null) => void;
   resetConversation: () => void;
+  resetTabData: () => void;
   hydrateConversationFromCache: (conversationId: string) => boolean;
-};
+  fetchActiveConversation: (
+    getToken: GetToken,
+    options?: FetchConversationOptions,
+  ) => Promise<void>;
+}>;
 
 function withMessageCache(
   state: ChatState,
@@ -47,6 +67,18 @@ function withMessageCache(
   };
 }
 
+function hasDisplayableMessages(
+  targetConversationId: string | null,
+  messages: ChatMessage[],
+  activeConversationId: string | null,
+): boolean {
+  if (messages.length === 0) {
+    return false;
+  }
+
+  return !targetConversationId || activeConversationId === targetConversationId;
+}
+
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
@@ -58,6 +90,8 @@ export const useChatStore = create<ChatState>()(
       isStreaming: false,
       replyPhase: "idle",
       error: null,
+      lastFetchedAt: null,
+      fetchPromise: null,
       setConversationId: (conversationId) => set({ conversationId }),
       setMessages: (messages) =>
         set((state) =>
@@ -90,6 +124,21 @@ export const useChatStore = create<ChatState>()(
           error: null,
           isStreaming: false,
           replyPhase: "idle",
+          lastFetchedAt: null,
+          fetchPromise: null,
+        }),
+      resetTabData: () =>
+        set({
+          conversationId: null,
+          messages: [],
+          messageCache: {},
+          draftText: "",
+          error: null,
+          isLoadingHistory: false,
+          isStreaming: false,
+          replyPhase: "idle",
+          lastFetchedAt: null,
+          fetchPromise: null,
         }),
       hydrateConversationFromCache: (conversationId) => {
         const cached = get().messageCache[conversationId];
@@ -103,6 +152,102 @@ export const useChatStore = create<ChatState>()(
           messages: cached,
         });
         return true;
+      },
+      fetchActiveConversation: async (getToken, options = {}) => {
+        const { silent = false, force = false, conversationId } = options;
+        const state = get();
+
+        if (state.isStreaming) {
+          return;
+        }
+
+        const targetConversationId =
+          conversationId !== undefined
+            ? conversationId
+            : state.conversationId;
+
+        if (
+          !force &&
+          state.lastFetchedAt &&
+          !isStale(state.lastFetchedAt) &&
+          hasDisplayableMessages(
+            targetConversationId,
+            state.messages,
+            state.conversationId,
+          )
+        ) {
+          return;
+        }
+
+        if (state.fetchPromise) {
+          return state.fetchPromise;
+        }
+
+        let canShowCached = false;
+
+        if (targetConversationId && state.messages.length === 0) {
+          canShowCached = get().hydrateConversationFromCache(
+            targetConversationId,
+          );
+        }
+
+        const hasData =
+          hasDisplayableMessages(
+            targetConversationId,
+            get().messages,
+            get().conversationId,
+          ) || canShowCached;
+
+        const promise = (async (): Promise<void> => {
+          if (!silent && !canShowCached && !hasData) {
+            set({ isLoadingHistory: true });
+          }
+
+          set({ error: null });
+
+          try {
+            const token = await getToken();
+            const query = targetConversationId
+              ? `?conversationId=${encodeURIComponent(targetConversationId)}`
+              : "";
+            const response = await apiFetch<ConversationResponse>(
+              `/api/chat/conversations${query}`,
+              { token },
+            );
+
+            if (get().isStreaming) {
+              return;
+            }
+
+            if (response.conversation) {
+              set({ conversationId: response.conversation.conversationId });
+            }
+
+            set((current) => ({
+              ...withMessageCache(
+                current,
+                response.conversation?.conversationId ?? current.conversationId,
+                response.messages,
+              ),
+              lastFetchedAt: Date.now(),
+            }));
+          } catch (loadError) {
+            const hasCached = get().messages.length > 0;
+
+            if (!hasCached) {
+              const message =
+                loadError instanceof Error
+                  ? loadError.message
+                  : "Failed to load chat history";
+              set({ error: message });
+            }
+          } finally {
+            set({ isLoadingHistory: false, fetchPromise: null });
+          }
+        })();
+
+        set({ fetchPromise: promise });
+        return promise;
       },
     }),
     {

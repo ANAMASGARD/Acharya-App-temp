@@ -1,10 +1,11 @@
-import { apiFetch } from "@/lib/api-client";
 import { formatTimeAgo } from "@/lib/community/time-ago";
+import { useDashboardStore } from "@/store/dashboard-store";
 import type { DashboardResponse } from "@/types/community";
 import type { RecentActivityItem } from "@/types/home-dashboard";
+import { isStale } from "@/types/async-resource";
 import { useAuth } from "@clerk/expo";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 
 type UseHomeDashboardResult = Readonly<{
   dashboard: DashboardResponse | null;
@@ -38,46 +39,29 @@ export function useHomeDashboard(): UseHomeDashboardResult {
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
 
-  const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const dashboard = useDashboardStore((state) => state.dashboard);
+  const status = useDashboardStore((state) => state.status);
+  const error = useDashboardStore((state) => state.error);
+  const lastFetchedAt = useDashboardStore((state) => state.lastFetchedAt);
+  const fetchDashboard = useDashboardStore((state) => state.fetch);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const token = await getTokenRef.current();
-      const response = await apiFetch<DashboardResponse>(
-        "/api/dashboard?activityLimit=2",
-        { token },
-      );
-      setDashboard(response);
-      setHasFetched(true);
-    } catch (fetchError) {
-      const message =
-        fetchError instanceof Error
-          ? fetchError.message
-          : "Failed to load dashboard";
-      setError(message);
-      setHasFetched(true);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    await fetchDashboard(() => getTokenRef.current(), { force: true });
+  }, [fetchDashboard]);
 
   useFocusEffect(
     useCallback(() => {
-      void refresh();
-    }, [refresh]),
+      if (isStale(lastFetchedAt)) {
+        void fetchDashboard(() => getTokenRef.current(), { silent: true });
+      }
+    }, [fetchDashboard, lastFetchedAt]),
   );
 
   return {
     dashboard,
     recentActivity: mapActivityItems(dashboard),
-    isLoading,
-    hasFetched,
+    isLoading: status === "loading" && dashboard === null,
+    hasFetched: status !== "idle",
     error,
     refresh,
   };

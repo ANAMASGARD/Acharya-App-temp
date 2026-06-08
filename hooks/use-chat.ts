@@ -3,6 +3,7 @@ import { streamChatMessage } from "@/lib/chat-stream";
 import { useChatHistoryStore } from "@/store/chat-history-store";
 import { useChatStore } from "@/store/chat-store";
 import type { ChatConversation, ChatMessage, ChatReplyPhase } from "@/types/chat";
+import { isStale } from "@/types/async-resource";
 import { useAuth } from "@clerk/expo";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef } from "react";
@@ -27,18 +28,6 @@ type UseChatResult = Readonly<{
   openConversation: (conversationId: string) => Promise<void>;
 }>;
 
-function hasDisplayableMessages(
-  conversationId: string | null,
-  messages: ChatMessage[],
-): boolean {
-  if (messages.length === 0) {
-    return false;
-  }
-
-  const activeConversationId = useChatStore.getState().conversationId;
-  return !conversationId || activeConversationId === conversationId;
-}
-
 export function useChat(): UseChatResult {
   const { getToken } = useAuth();
   const getTokenRef = useRef(getToken);
@@ -56,111 +45,57 @@ export function useChat(): UseChatResult {
   const error = useChatStore((state) => state.error);
   const conversationId = useChatStore((state) => state.conversationId);
   const setDraftText = useChatStore((state) => state.setDraftText);
+  const fetchActiveConversation = useChatStore(
+    (state) => state.fetchActiveConversation,
+  );
 
   conversationIdRef.current = conversationId;
 
-  const fetchConversation = useCallback(
-    async (
-      targetConversationId: string | null,
-      options?: Readonly<{ silent?: boolean }>,
-    ): Promise<void> => {
-      if (useChatStore.getState().isStreaming) {
-        return;
-      }
-
-      const silent = options?.silent ?? false;
-      const stateBeforeFetch = useChatStore.getState();
-      let canShowCached = false;
-
-      if (targetConversationId && stateBeforeFetch.messages.length === 0) {
-        canShowCached = stateBeforeFetch.hydrateConversationFromCache(
-          targetConversationId,
-        );
-      }
-
-      if (
-        !silent &&
-        !canShowCached &&
-        !hasDisplayableMessages(
-          targetConversationId,
-          useChatStore.getState().messages,
-        )
-      ) {
-        useChatStore.getState().setIsLoadingHistory(true);
-      }
-
-      useChatStore.getState().setError(null);
-
-      try {
-        const token = await getTokenRef.current();
-        const query = targetConversationId
-          ? `?conversationId=${encodeURIComponent(targetConversationId)}`
-          : "";
-        const response = await apiFetch<ConversationResponse>(
-          `/api/chat/conversations${query}`,
-          { token },
-        );
-
-        if (useChatStore.getState().isStreaming) {
-          return;
-        }
-
-        if (response.conversation) {
-          useChatStore
-            .getState()
-            .setConversationId(response.conversation.conversationId);
-          conversationIdRef.current = response.conversation.conversationId;
-        }
-
-        useChatStore.getState().setMessages(response.messages);
-      } catch (loadError) {
-        const hasCached = useChatStore.getState().messages.length > 0;
-
-        if (!hasCached) {
-          const message =
-            loadError instanceof Error
-              ? loadError.message
-              : "Failed to load chat history";
-          useChatStore.getState().setError(message);
-        }
-      } finally {
-        useChatStore.getState().setIsLoadingHistory(false);
-      }
+  const loadConversation = useCallback(
+    async (options?: Readonly<{ silent?: boolean; force?: boolean }>): Promise<void> => {
+      await fetchActiveConversation(() => getTokenRef.current(), {
+        conversationId: conversationIdRef.current,
+        ...options,
+      });
     },
-    [],
+    [fetchActiveConversation],
   );
-
-  const loadConversation = useCallback(async (): Promise<void> => {
-    const activeConversationId = conversationIdRef.current;
-    const currentMessages = useChatStore.getState().messages;
-
-    if (hasDisplayableMessages(activeConversationId, currentMessages)) {
-      await fetchConversation(activeConversationId, { silent: true });
-      return;
-    }
-
-    if (
-      activeConversationId &&
-      useChatStore.getState().hydrateConversationFromCache(activeConversationId)
-    ) {
-      await fetchConversation(activeConversationId, { silent: true });
-      return;
-    }
-
-    await fetchConversation(activeConversationId, { silent: false });
-  }, [fetchConversation]);
 
   useFocusEffect(
     useCallback(() => {
-      void loadConversation();
+      const state = useChatStore.getState();
+      const hasCachedMessages = state.messages.length > 0;
 
+      if (hasCachedMessages) {
+        if (isStale(state.lastFetchedAt)) {
+          void loadConversation({ silent: true });
+        }
+        return;
+      }
+
+      if (
+        state.conversationId &&
+        state.hydrateConversationFromCache(state.conversationId)
+      ) {
+        void loadConversation({ silent: true });
+        return;
+      }
+
+      if (isStale(state.lastFetchedAt)) {
+        void loadConversation({ silent: false });
+      }
+    }, [loadConversation]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
       return () => {
         abortRef.current?.abort();
         abortRef.current = null;
         useChatStore.getState().setIsStreaming(false);
         useChatStore.getState().setReplyPhase("idle");
       };
-    }, [loadConversation]),
+    }, []),
   );
 
   const sendMessage = useCallback(async (rawText: string): Promise<void> => {
@@ -324,9 +259,12 @@ export function useChat(): UseChatResult {
         useChatStore.getState().setMessages([]);
       }
 
-      await fetchConversation(id, { silent: hydrated });
+      await fetchActiveConversation(() => getTokenRef.current(), {
+        conversationId: id,
+        silent: hydrated,
+      });
     },
-    [fetchConversation],
+    [fetchActiveConversation],
   );
 
   const startNewChat = useCallback(async (): Promise<void> => {

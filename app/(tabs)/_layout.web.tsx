@@ -1,4 +1,5 @@
 import { AcharyaTabBar } from "@/components/navigation/acharya-tab-bar";
+import { TabDataBootstrap } from "@/components/navigation/tab-data-bootstrap";
 import { useAuth } from "@clerk/expo";
 import { Redirect, Tabs } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
@@ -27,18 +28,22 @@ export default function TabsLayoutWeb(): React.ReactElement | null {
   }
 
   return (
-    <Tabs
-      initialRouteName="recorder"
-      screenOptions={{
-        headerShown: false,
-      }}
-      tabBar={(props) => <AcharyaTabBar {...props} />}
-    >
+    <>
+      <TabDataBootstrap />
+      <Tabs
+        initialRouteName="recorder"
+        screenOptions={{
+          headerShown: false,
+          lazy: false,
+        }}
+        tabBar={(props) => <AcharyaTabBar {...props} />}
+      >
       <Tabs.Screen name="index" options={{ title: "Home" }} />
       <Tabs.Screen name="calendar" options={{ title: "Calendar" }} />
       <Tabs.Screen name="recorder" options={{ title: "Recorder" }} />
       <Tabs.Screen name="chat" options={{ title: "Chat" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
+    </>
   );
 }
