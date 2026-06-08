@@ -1,4 +1,5 @@
 import {
+  getOpenRouterChatboxConfig,
   getOpenRouterConfig,
   OpenRouterConfigError,
 } from "@/lib/ai-config";
@@ -238,10 +239,10 @@ export async function streamChatCompletion(input: {
   onDelta: (chunk: string) => void;
   signal?: AbortSignal;
 }): Promise<string> {
-  let config: ReturnType<typeof getOpenRouterConfig>;
+  let config: ReturnType<typeof getOpenRouterChatboxConfig>;
 
   try {
-    config = getOpenRouterConfig();
+    config = getOpenRouterChatboxConfig();
   } catch (error) {
     if (error instanceof OpenRouterConfigError) {
       throw Object.assign(new Error(error.message), {

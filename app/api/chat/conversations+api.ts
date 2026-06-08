@@ -6,6 +6,7 @@ import {
   getLatestConversationForTeacher,
   listConversationsForTeacher,
   listMessages,
+  updateConversationTitleForTeacher,
 } from "@/lib/graph/chat";
 
 export async function GET(request: Request): Promise<Response> {
@@ -73,6 +74,49 @@ export async function DELETE(request: Request): Promise<Response> {
     const message =
       error instanceof Error ? error.message : "Failed to delete conversation";
     const status = message.includes("Authorization") ? 401 : 500;
+    return Response.json({ error: message }, { status });
+  }
+}
+
+export async function PATCH(request: Request): Promise<Response> {
+  try {
+    const { userId } = await requireAuth(request);
+    const body = (await request.json()) as {
+      conversationId?: string;
+      title?: string;
+    };
+
+    const conversationId = body.conversationId?.trim();
+    const title = body.title;
+
+    if (!conversationId) {
+      return Response.json(
+        { error: "conversationId is required" },
+        { status: 400 },
+      );
+    }
+
+    if (typeof title !== "string") {
+      return Response.json({ error: "title is required" }, { status: 400 });
+    }
+
+    const savedTitle = await updateConversationTitleForTeacher(
+      userId,
+      conversationId,
+      title,
+    );
+
+    return Response.json({ ok: true, title: savedTitle });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to rename conversation";
+    const status = message.includes("Authorization")
+      ? 401
+      : message.includes("not found")
+        ? 404
+        : message.includes("empty") || message.includes("80 characters")
+          ? 400
+          : 500;
     return Response.json({ error: message }, { status });
   }
 }

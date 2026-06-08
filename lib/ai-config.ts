@@ -8,7 +8,10 @@
 /** Environment variable names for AI services (values live in `.env` only). */
 export const AI_ENV = {
   OPENROUTER_API_KEY: "OPENROUTER_API_KEY",
+  /** Recorder transcript analysis and other non-chat LLM flows */
   OPENROUTER_MODEL: "OPENROUTER_MODEL",
+  /** Chat Acharya inbox only (`app/api/chat/completions+api.ts`) */
+  OPENROUTER_CHATBOX_MODEL: "OPENROUTER_CHATBOX_MODEL",
   OPENROUTER_EMBEDDING_MODEL: "OPENROUTER_EMBEDDING_MODEL",
   OPENROUTER_VISION_MODEL: "OPENROUTER_VISION_MODEL",
   OPENROUTER_VISION_SEED_MODEL: "OPENROUTER_VISION_SEED_MODEL",
@@ -67,7 +70,7 @@ function readEnv(name: string): string | undefined {
 }
 
 /**
- * OpenRouter LLM settings for teaching analysis (`lib/openrouter.ts`).
+ * OpenRouter LLM settings for recorder teaching analysis (`lib/openrouter.ts`).
  * Requires OPENROUTER_API_KEY and OPENROUTER_MODEL in server `.env`.
  */
 export function getOpenRouterConfig(): OpenRouterConfig {
@@ -83,6 +86,29 @@ export function getOpenRouterConfig(): OpenRouterConfig {
   if (!model) {
     throw new OpenRouterConfigError(
       "Teaching coach model is not configured. Add OPENROUTER_MODEL to .env and restart the server.",
+    );
+  }
+
+  return { apiKey, model };
+}
+
+/**
+ * OpenRouter LLM settings for Chat Acharya (`streamChatCompletion` only).
+ * Requires OPENROUTER_API_KEY and OPENROUTER_CHATBOX_MODEL in server `.env`.
+ */
+export function getOpenRouterChatboxConfig(): OpenRouterConfig {
+  const apiKey = readEnv(AI_ENV.OPENROUTER_API_KEY);
+  const model = readEnv(AI_ENV.OPENROUTER_CHATBOX_MODEL);
+
+  if (!apiKey) {
+    throw new OpenRouterConfigError(
+      "Chat coach is not configured. Add OPENROUTER_API_KEY to .env and restart the server.",
+    );
+  }
+
+  if (!model) {
+    throw new OpenRouterConfigError(
+      "Chat coach model is not configured. Add OPENROUTER_CHATBOX_MODEL to .env and restart the server.",
     );
   }
 

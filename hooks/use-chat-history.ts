@@ -1,6 +1,8 @@
 import { apiFetch } from "@/lib/api-client";
+import { useChatHistoryStore } from "@/store/chat-history-store";
 import type { ChatConversationSummary } from "@/types/chat";
 import { useAuth } from "@clerk/expo";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 
 type ConversationListResponse = Readonly<{
@@ -15,6 +17,7 @@ type UseChatHistoryResult = Readonly<{
   openDrawer: () => Promise<void>;
   closeDrawer: () => void;
   deleteConversation: (conversationId: string) => Promise<void>;
+  renameConversation: (conversationId: string, title: string) => Promise<void>;
 }>;
 
 export function useChatHistory(): UseChatHistoryResult {
@@ -23,37 +26,59 @@ export function useChatHistory(): UseChatHistoryResult {
   getTokenRef.current = getToken;
 
   const [isOpen, setIsOpen] = useState(false);
-  const [conversations, setConversations] = useState<ChatConversationSummary[]>(
-    [],
-  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadConversations = useCallback(async (): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
+  const conversations = useChatHistoryStore((state) => state.conversations);
+  const setConversations = useChatHistoryStore((state) => state.setConversations);
+  const removeConversation = useChatHistoryStore(
+    (state) => state.removeConversation,
+  );
+  const renameConversationInStore = useChatHistoryStore(
+    (state) => state.renameConversation,
+  );
 
-    try {
-      const token = await getTokenRef.current();
-      const response = await apiFetch<ConversationListResponse>(
-        "/api/chat/conversations?list=1",
-        { token },
-      );
-      setConversations(response.conversations);
-    } catch (fetchError) {
-      const message =
-        fetchError instanceof Error
-          ? fetchError.message
-          : "Failed to load chat history";
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const loadConversations = useCallback(
+    async (options?: Readonly<{ silent?: boolean }>): Promise<void> => {
+      const hasCachedList = useChatHistoryStore.getState().conversations.length > 0;
+
+      if (!options?.silent || !hasCachedList) {
+        setIsLoading(!hasCachedList);
+      }
+
+      setError(null);
+
+      try {
+        const token = await getTokenRef.current();
+        const response = await apiFetch<ConversationListResponse>(
+          "/api/chat/conversations?list=1",
+          { token },
+        );
+        setConversations(response.conversations);
+      } catch (fetchError) {
+        if (!hasCachedList) {
+          const message =
+            fetchError instanceof Error
+              ? fetchError.message
+              : "Failed to load chat history";
+          setError(message);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [setConversations],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadConversations({ silent: true });
+    }, [loadConversations]),
+  );
 
   const openDrawer = useCallback(async (): Promise<void> => {
     setIsOpen(true);
-    await loadConversations();
+    await loadConversations({ silent: true });
   }, [loadConversations]);
 
   const closeDrawer = useCallback((): void => {
@@ -71,9 +96,7 @@ export function useChatHistory(): UseChatHistoryResult {
             token,
           },
         );
-        setConversations((current) =>
-          current.filter((item) => item.conversationId !== conversationId),
-        );
+        removeConversation(conversationId);
       } catch (deleteError) {
         const message =
           deleteError instanceof Error
@@ -82,7 +105,23 @@ export function useChatHistory(): UseChatHistoryResult {
         setError(message);
       }
     },
-    [],
+    [removeConversation],
+  );
+
+  const renameConversation = useCallback(
+    async (conversationId: string, title: string): Promise<void> => {
+      const token = await getTokenRef.current();
+      const response = await apiFetch<{ ok: boolean; title: string }>(
+        "/api/chat/conversations",
+        {
+          method: "PATCH",
+          token,
+          body: { conversationId, title },
+        },
+      );
+      renameConversationInStore(conversationId, response.title);
+    },
+    [renameConversationInStore],
   );
 
   return {
@@ -93,5 +132,6 @@ export function useChatHistory(): UseChatHistoryResult {
     openDrawer,
     closeDrawer,
     deleteConversation,
+    renameConversation,
   };
 }

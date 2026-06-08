@@ -1,3 +1,10 @@
+export type ChatReplyPhase =
+  | "idle"
+  | "sent"
+  | "analyzing"
+  | "preparing"
+  | "almost_ready";
+
 export type ChatRole = "user" | "assistant" | "system";
 
 export type ChatMessage = Readonly<{

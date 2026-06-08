@@ -11,58 +11,38 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 9 — Swipeable tabs + Chat history cleanup** ✅ committed on `dev` (`0f5f7da`) |
-| **Previous phases** | Phase 8 Home + Community (`40bf9fa`), Phase 7c Question Paper RAG |
+| **Phase** | **Phase 10 — Chat Acharya polish** ✅ committed on `dev` (`82a0a53`) |
+| **Previous phases** | Phase 9 swipeable tabs (`0f5f7da`), Phase 8 Home + Community (`40bf9fa`), Phase 7c Question Paper RAG |
 | **Branch** | `dev` |
-| **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes, live Home dashboard + community |
+| **Runnable in Expo Go?** | Yes — recorder, calendar, chat UI, notes, Home + community; **chat keyboard sticky composer needs dev build** (`react-native-keyboard-controller`) |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
 
 ### What works today
 
-**Home Dashboard + Teacher Community (Phase 8)**
+**Chat Acharya (Phase 10)**
 
-- **Live Home dashboard** — stats merged inside Recent Activity card (classes, notes, avg score); compact header; activity max 2 on Home
-- **Dashboard fix** — Neo4j `LIMIT` uses `neo4j.int()` (fixes `5.0 is not a valid integer` error)
-- **Community on Home** — feed preview (max 2 posts), compact create-post banner; visible without scroll on most phones
-- **Post images** — create post supports gallery/camera/files (JPG, PNG, WEBP, HEIC, GIF, etc.); up to 4 images; served via `GET /api/community/images/[imageId]`
-- **Acharya welcome post** — always upserted in Aura on feed load; ASCII-art quick-start guide; pinned first; deletable; does not re-appear after delete
-- **Post UX** — card content tappable for full post; bookmark icon top-right only; delete in footer only; vote/save/delete wired with Teacher MERGE fix + API route param fallback
-- **Full community stack** — `/community/feed`, create post, post detail + comments, groups, join by code, group chat (5s poll)
-- **Neo4j community graph** — `CommunityPost`, `CommunityComment`, `CommunityGroup`, `GroupMessage`, `CommunityPostImage` + vote/save/member relationships
-- **Transactional vote scores** — `CommunityPost.score` updated in single write tx with delta table
-- **Deep links** — share copies `acharyaapp://community/post/{postId}`
+- **Dedicated chat LLM** — `OPENROUTER_CHATBOX_MODEL` (e.g. `google/gemini-2.5-flash-lite`) for inbox only; recorder/analysis stays on `OPENROUTER_MODEL`
+- **Multilingual coach prompt** — all 22 scheduled Indian languages in native scripts (Devanagari, Tamil, Bengali, Gurmukhi, etc.); short precise answers by default; long answers only when teacher asks
+- **WhatsApp-style caching** — `messageCache` in `chat-store` + `chat-history-store`; instant show on tab/conversation switch; background revalidate; no spinner when cache hit
+- **History drawer** — rename + delete with confirm dialogs; keyboard-aware edit title (`use-keyboard-height`); Aura-backed list prefetch on tab focus
+- **Stage-based loading** — reply phases `sent → analyzing → preparing → almost_ready` tied to stream lifecycle (no infinite text loop); mascot pulse + wave dots in `chat-loading-indicator`
+- **Floating composer UX** — transparent dock (no white strip); absolute overlay; `composerInset` padding so last message stays visible above input
+- **Keyboard** — `react-native-keyboard-controller` (`KeyboardProvider`, `KeyboardStickyView`, `KeyboardAwareScrollView`); Android `softwareKeyboardLayoutMode: pan`
 
-**Question Paper Tool (Phase 7c) ✅**
+**Home Dashboard + Teacher Community (Phase 8)** — unchanged
 
-- `/notes/upload`, `/notes/generate`, hybrid Graph RAG, 11 demo NCERT books embedded
-
-**API routes (Clerk auth) — community + dashboard**
-
-| Route | Role |
-|-------|------|
-| `GET /api/dashboard` | Live stats + recent activity |
-| `GET/POST /api/community/posts` | Feed + create post |
-| `GET /api/community/posts/[postId]` | Post detail + comments |
-| `POST/DELETE .../vote` | Upvote/downvote/remove |
-| `POST/DELETE .../save` | Bookmark toggle |
-| `GET/POST .../comments` | Comment thread |
-| `GET /api/community/images/[imageId]` | Serve uploaded post images |
-| `GET/POST /api/community/groups` | List/create groups |
-| `POST /api/community/groups/join` | Join by code (case-insensitive) |
-| `GET /api/community/groups/[groupId]` | Group detail + members |
-| `GET/POST .../messages` | Group chat |
+**Question Paper Tool (Phase 7c)** — unchanged
 
 **Navigation (Phase 9)**
 
-- **Swipeable bottom tabs** — WhatsApp-style horizontal swipe between Home, Calendar, Recorder, Chat, Profile on native (`SwipeableTabs` + Material Top Tabs, `lazy: false` for recorder continuity)
-- **Web tabs** — tap-only `_layout.web.tsx` fallback
-- **React Navigation** — `@react-navigation/native@^7.2.6` (required by material-top-tabs)
+- Swipeable bottom tabs; web tap-only fallback; live-only chat history (no demo cards)
 
-**Chat (Phase 9)**
+**API routes (Clerk auth) — chat additions**
 
-- **Chat history drawer** — Aura-backed conversations only; removed `DEMO_CHAT_HISTORY` / “Teacher Support Chat” placeholders
-
-**Chat, Recorder, Calendar, Auth, Profile** — Chat tab AI coach; recorder default tab
+| Route | Role |
+|-------|------|
+| `PATCH /api/chat/conversations` | Rename conversation title |
+| `DELETE /api/chat/conversations` | Delete conversation + messages |
 
 **Not built yet**
 
@@ -76,11 +56,16 @@
 |-------|--------|
 | `npm run lint` | ✅ pass |
 | `npx tsc --noEmit` | ✅ pass |
-| `npm run verify:neo4j` | ✅ pass — 2299 nodes, 2279 rels |
+| `npm run verify:neo4j` | ✅ pass — 2300 nodes, 2280 rels |
 | `npm run neo4j:test` | ✅ pass — 8/8 integration tests |
 | `npm run neo4j:test-api` | ✅ pass — API layer + health query |
 
-**Aura schema:** `neo4j/schema.cypher` — apply after pull: `npm run neo4j:apply-schema` (adds community constraints/indexes)
+**Env (server `.env`):**
+
+```env
+OPENROUTER_MODEL=...              # recorder / teaching report analysis
+OPENROUTER_CHATBOX_MODEL=google/gemini-2.5-flash-lite   # Chat Acharya inbox only
+```
 
 ---
 
@@ -90,96 +75,83 @@
 Phase 0–7c   … prior phases (see §6 Commit Log)
 Phase 8      Home Dashboard + Teacher Community
 Phase 9      Swipeable tab navigation + live-only chat history drawer
+Phase 10     Chat Acharya — caching, multilingual prompt, dedicated model, composer UX
 ```
 
 ---
 
 ## 3. Architecture Snapshot
 
-### Home + community
+### Chat (Phase 10)
 
 ```
-Home tab
-  → use-home-dashboard → GET /api/dashboard
-  → use-community-feed (preview limit 2) → GET /api/community/posts (+ welcome upsert + optional demo seed)
-  → Groups segment (lazy) → GET /api/community/groups
+app/api/chat/completions+api.ts     — NDJSON stream; buildChatSystemContent()
+app/api/chat/conversations+api.ts   — list, rename, delete
+lib/prompts/chat-coach.ts           — multilingual + short-answer system prompt
+lib/openrouter.ts                   — streamChatCompletion → OPENROUTER_CHATBOX_MODEL
+lib/ai-config.ts                    — getOpenRouterChatboxConfig()
+lib/chat-stream.ts                  — onStreamOpen / onStreamActivity for reply phases
+lib/graph/chat.ts                   — Aura Conversation + Message graph ops
 
-app/community/*
-  → feed, create-post, post/[postId], groups/*, join, group chat
+store/chat-store.ts                 — messages + messageCache + replyPhase
+store/chat-history-store.ts         — conversation list cache
+hooks/use-chat.ts                   — stale-while-revalidate, phase transitions
+hooks/use-chat-history.ts           — drawer + rename/delete + prefetch
+hooks/use-keyboard-height.ts        — shared keyboard lift for dialogs
 
-lib/graph/dashboard.ts       — stats + activity aggregation
-lib/graph/community/*        — feed, votes, comments, groups, chat, seed-demo, seed-welcome
-lib/api-route-params.ts      — nested API route param resolution fallback
-lib/community/post-route.ts  — post deep-link paths
-lib/dashboard/streak.ts      — consecutive-day streak in TypeScript
+components/chat/chat-screen.tsx           — KeyboardStickyView floating composer
+components/chat/chat-message-list.tsx     — composerInset paddingBottom
+components/chat/chat-loading-indicator.tsx — mascot + dots + phase label
+components/chat/chat-edit-title-dialog.tsx
+components/chat/chat-delete-confirm-dialog.tsx
 ```
 
-### Question paper RAG (Phase 7c)
+### Home + community / RAG / navigation
 
-Unchanged — see prior memory sections.
-
-### Navigation + chat history (Phase 9)
-
-```
-app/(tabs)/_layout.tsx          — SwipeableTabs (native)
-app/(tabs)/_layout.web.tsx      — tap-only Tabs (web)
-components/navigation/swipeable-tabs.tsx
-components/navigation/acharya-tab-bar.tsx — MaterialTopTabBarProps + jumpTo(route.key)
-components/chat/chat-history-drawer.tsx   — live conversations only
-```
+Unchanged from Phase 8–9 — see prior sections.
 
 ---
 
-## 4. File map — Phase 8
-
-### API
+## 4. File map — Phase 10 (Chat)
 
 | File | Role |
 |------|------|
-| `app/api/dashboard+api.ts` | Dashboard aggregation |
-| `app/api/community/posts+api.ts` | Feed + create (+ image upload) |
-| `app/api/community/posts/[postId]+api.ts` | Detail + delete |
-| `app/api/community/posts/[postId]/vote+api.ts` | Votes |
-| `app/api/community/posts/[postId]/save+api.ts` | Saves |
-| `app/api/community/posts/[postId]/comments+api.ts` | Comments |
-| `app/api/community/images/[imageId]+api.ts` | Post image serving |
-| `app/api/community/groups+api.ts` | Groups |
-| `app/api/community/groups/join+api.ts` | Join code |
-| `app/api/community/groups/[groupId]+api.ts` | Group detail |
-| `app/api/community/groups/[groupId]/messages+api.ts` | Group chat |
-
-### UI
-
-| Path | Role |
-|------|------|
-| `components/home/home-screen.tsx` | Compact Home (stats in activity card) |
-| `components/home/recent-activity-card.tsx` | Stats chips + activity + quick links |
-| `components/community/*` | Feed, post card/body, images, groups, chat, top bookmark actions |
-| `app/community/*` | Community stack screens |
-
-### Hooks / store
-
-| File | Role |
-|------|------|
-| `hooks/use-home-dashboard.ts` | Dashboard on focus |
-| `hooks/use-community-feed.ts` | Feed + optimistic vote/save/delete |
-| `hooks/use-community-groups.ts` | Groups CRUD/join |
-| `hooks/use-group-chat.ts` | 5s polling chat |
-| `hooks/use-community-post-images.ts` | Image picker + upload |
-| `store/community-store.ts` | Draft post state |
+| `lib/ai-config.ts` | `OPENROUTER_CHATBOX_MODEL` + `getOpenRouterChatboxConfig()` |
+| `lib/prompts/chat-coach.ts` | Multilingual native-script + brevity rules |
+| `lib/openrouter.ts` | Chat stream uses chatbox config |
+| `lib/chat-stream.ts` | Stream callbacks for reply phases |
+| `lib/graph/chat.ts` | Rename/delete conversation Cypher |
+| `app/api/chat/conversations+api.ts` | PATCH/DELETE handlers |
+| `store/chat-store.ts` | Message cache + `ChatReplyPhase` |
+| `store/chat-history-store.ts` | Global conversation list cache |
+| `hooks/use-chat.ts` | Cache hydrate, silent refresh, phase machine |
+| `hooks/use-chat-history.ts` | Rename/delete API + prefetch |
+| `hooks/use-keyboard-height.ts` | Keyboard overlap for modals |
+| `components/chat/chat-loading-indicator.tsx` | Branded loader |
+| `components/chat/chat-edit-title-dialog.tsx` | Rename with keyboard lift |
+| `components/chat/chat-delete-confirm-dialog.tsx` | Delete confirm |
+| `components/chat/chat-screen.tsx` | Floating composer layout |
+| `components/chat/chat-message-list.tsx` | Scroll inset above composer |
+| `types/chat.ts` | `ChatReplyPhase` type |
+| `app/_layout.tsx` | `KeyboardProvider` |
+| `app.json` | Android `softwareKeyboardLayoutMode: pan` |
+| `.env.example` | Documents `OPENROUTER_CHATBOX_MODEL` |
 
 ---
 
 ## 5. Current State
 
-> **Status:** Phase 9 shipped on `dev` (`0f5f7da`). Ready for PR to `main`.
+> **Status:** Phase 10 shipped on `dev` (`82a0a53`). Ready for PR to `main`.
 
 | Topic | Implementation |
 |-------|----------------|
-| Tab navigation | Native swipe via Material Top Tabs; web tap-only; custom `AcharyaTabBar` preserved |
-| Recorder + swipe | `lazy: false` — recording continues when swiping to other tabs |
-| Chat history | No demo cards; empty state when no Aura conversations |
-| Home / community | Unchanged from Phase 8 |
+| Chat LLM | Separate `OPENROUTER_CHATBOX_MODEL` (Gemini 2.5 Flash Lite); recorder unchanged on `OPENROUTER_MODEL` |
+| Prompt | 22 Indian languages in native script; short answers default |
+| Caching | Message + history list cache; no reload spinner on tab switch when cached |
+| History UX | Rename/delete; keyboard-safe edit dialog |
+| Loading UX | Stage-based status text (not looping); mascot + dots |
+| Composer | Transparent floating bar; last message padded above input |
+| Keyboard | `react-native-keyboard-controller` — dev build recommended |
 
 ---
 
@@ -191,31 +163,36 @@ components/chat/chat-history-drawer.tsx   — live conversations only
 
 ### `40bf9fa` — feat: Home dashboard and teacher community with post images and welcome guide
 
-- Live Aura dashboard on Home (`GET /api/dashboard`); stats merged into Recent Activity card
-- Neo4j `neo4j.int()` fix for dashboard LIMIT params
-- Full teacher community: feed, create post, post detail, comments, votes, saves, groups, join-by-code, group chat
-- Post image upload (gallery/camera/files) + `CommunityPostImage` graph nodes + image API route
-- Acharya welcome post (ASCII quick-start guide); always upserted; pinned; deletable
-- Post UX polish: tappable card body, bookmark top-only, delete footer-only, monospace ASCII body rendering
-- Vote/save Teacher MERGE fix; nested API route param resolution
-- Schema + graph-model updates for community labels/constraints
-- Validation: lint, tsc, verify:neo4j, neo4j:test, neo4j:test-api — all pass
+- (prior entry unchanged)
 
 ### `0f5f7da` — feat: add swipeable bottom tabs and live-only chat history drawer
 
-- Native swipeable tabs via `SwipeableTabs` (Material Top Tabs, bottom bar, `lazy: false`)
-- Web tap-only `_layout.web.tsx`; upgraded `@react-navigation/native@^7.2.6`
-- Removed `DEMO_CHAT_HISTORY` — chat drawer shows Aura conversations only
+- Native swipeable tabs; removed demo chat history; validation pass
+
+### `92373c8` — docs: fix Phase 9 commit hash in project memory
+
+- Memory doc hash correction
+
+### `82a0a53` — feat: polish Chat Acharya with caching, multilingual coach, and floating composer
+
+- `OPENROUTER_CHATBOX_MODEL` for chat-only LLM; recorder stays on `OPENROUTER_MODEL`
+- Chat coach prompt: 22 Indian languages in native scripts; short answers by default
+- WhatsApp-style message + history caching (`chat-store`, `chat-history-store`)
+- Rename/delete conversations; keyboard-aware edit title dialog
+- Stage-based reply loading (`sent → analyzing → preparing → almost_ready`); branded mascot loader
+- Floating composer (no white strip); `composerInset` so last message visible above input
+- `react-native-keyboard-controller` for keyboard-aware scroll + sticky composer
+- Aura graph + API for conversation rename/delete
 - Validation: lint, tsc, verify:neo4j, neo4j:test, neo4j:test-api — all pass
 
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Merge Phase 9 PR** — `dev` → `main`
-2. **Manual test swipe tabs** — tap + swipe sync; record while swiping away from Recorder tab
+1. **Merge Phase 10 PR** — `dev` → `main`
+2. **Manual test Chat** — Hindi/Marathi/Tamil native script replies; tab switch cache; rename/delete; keyboard open/close on Android dev build
 3. **Chat voice agent** — Voice pill → Sarvam conversational agent
-4. **`npm run neo4j:apply-schema`** on Aura if community constraints not yet applied
+4. **Keyboard polish** — fine-tune sticky offset if tab bar overlap on specific devices
 
 ---
 
@@ -247,20 +224,19 @@ When you finish a meaningful commit:
 ```bash
 npm run lint && npx tsc --noEmit
 npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
-npm run neo4j:apply-schema    # after Phase 8 — community constraints
 npm run start:go -- --clear
+npx expo run:android   # keyboard-controller native module
 ```
 
-### Phase 8 test checklist
+### Phase 10 test checklist
 
-1. **Home** — no dashboard error; stats inside Recent Activity; Community Feed visible without scroll
-2. **Welcome post** — ASCII guide pinned; bookmark top; delete footer only; delete once → does not return
-3. **Demo seed** — set `COMMUNITY_DEMO_SEED=true`; open Home → realistic teacher posts appear
-4. **Community** — create post with images; upvote/downvote/toggle save; share link copies `acharyaapp://...`
-5. **Comments** — open post detail; add comment; `commentCount` increments
-6. **Groups** — create group; copy join code; second teacher joins with lowercase code
-7. **Group chat** — send message; appears on poll refresh for other member
+1. **Chat send** — status phases advance once (sent → analyzing → preparing → almost ready); mascot loader during stream
+2. **Multilingual** — ask for Hindi answer → Devanagari script, not Roman letters; reply stays short unless "explain in detail"
+3. **Cache** — send messages, switch tab, return → instant messages, no full-screen spinner
+4. **History** — rename conversation (keyboard doesn't hide Save); delete with confirm
+5. **Composer** — no white strip behind input; last message fully visible above chat box when scrolled to end
+6. **Env** — set `OPENROUTER_CHATBOX_MODEL=google/gemini-2.5-flash-lite`; recorder still uses `OPENROUTER_MODEL`
 
 ---
 
-*Last updated: 2026-06-08 — Phase 9 swipeable tabs + chat history cleanup on `dev`.*
+*Last updated: 2026-06-08 — Phase 10 Chat Acharya polish on `dev`.*

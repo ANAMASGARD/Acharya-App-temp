@@ -10,6 +10,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,12 +38,14 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <Stack
-        screenOptions={{
-          contentStyle: { backgroundColor: colors.cream },
-          headerShown: false,
-        }}
-      />
+      <KeyboardProvider>
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor: colors.cream },
+            headerShown: false,
+          }}
+        />
+      </KeyboardProvider>
     </ClerkProvider>
   );
 }

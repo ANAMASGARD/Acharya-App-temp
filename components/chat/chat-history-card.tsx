@@ -8,6 +8,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 type Props = Readonly<{
   conversation: ChatConversationSummary;
   onPress: () => void;
+  onEdit: () => void;
   onDelete: () => void;
 }>;
 
@@ -27,6 +28,7 @@ function formatDate(value: string): string {
 export function ChatHistoryCard({
   conversation,
   onPress,
+  onEdit,
   onDelete,
 }: Props): React.ReactElement {
   const messageLabel =
@@ -37,27 +39,45 @@ export function ChatHistoryCard({
   return (
     <View style={styles.cardWrap}>
       <View style={styles.card}>
-        <Pressable
-          accessibilityLabel={`Open ${conversation.title}`}
-          onPress={onPress}
-          style={({ pressed }) => [styles.cardTapArea, pressed && styles.pressed]}
-        >
-          <View style={styles.cardHeader}>
+        <View style={styles.cardHeader}>
+          <Pressable
+            accessibilityLabel={`Open ${conversation.title}`}
+            onPress={onPress}
+            style={({ pressed }) => [
+              styles.cardTapArea,
+              pressed && styles.pressed,
+            ]}
+          >
             <View style={styles.titleRow}>
               <MaterialCommunityIcons
                 color={colors.foreground}
                 name="message-text-outline"
                 size={18}
               />
-              <Text numberOfLines={1} style={styles.title}>
+              <Text numberOfLines={2} style={styles.title}>
                 {conversation.title}
               </Text>
             </View>
             <Text style={styles.meta}>
               {messageLabel} • {formatDate(conversation.createdAt)}
             </Text>
-          </View>
-        </Pressable>
+          </Pressable>
+
+          <Pressable
+            accessibilityLabel={`Rename ${conversation.title}`}
+            onPress={onEdit}
+            style={({ pressed }) => [
+              styles.editButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialCommunityIcons
+              color={colors.foreground}
+              name="pencil-outline"
+              size={16}
+            />
+          </Pressable>
+        </View>
 
         <Pressable
           accessibilityLabel={`Delete ${conversation.title}`}
@@ -89,10 +109,13 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.md,
   },
-  cardTapArea: {
-    gap: spacing.xs,
-  },
   cardHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  cardTapArea: {
+    flex: 1,
     gap: spacing.xs,
   },
   cardWrap: {
@@ -116,6 +139,18 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansBold,
     fontSize: 13,
   },
+  editButton: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    borderWidth: borderWidths.default,
+    height: 32,
+    justifyContent: "center",
+    marginTop: 2,
+    width: 32,
+    ...shadows.sm,
+  },
   meta: {
     color: colors.mutedForeground,
     fontFamily: fontFamilies.sans,
@@ -133,7 +168,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   titleRow: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
     gap: spacing.sm,
   },
