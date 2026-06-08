@@ -27,6 +27,7 @@
 - **No spinner on cache hit** — hooks read warm in-memory data; `isLoading` only when `status === "loading"` and no cached rows
 - **Sign-out reset** — bootstrap clears all tab stores; no stale prior-user data in session
 - **Web parity** — `lazy: false` on web tabs + same bootstrap entry point
+- **Calendar View Details preload** — `calendar-session-detail-store` caches session report + transcript summary; bootstrap prefetches 5 recent sessions; selecting a date prefetches all visible session cards; modal opens instantly when cache hit
 
 **Chat Acharya (Phase 10)**
 
@@ -84,6 +85,7 @@ Phase 11     Tab-wide async preload — Zustand bootstrap + stale-while-revalida
 types/async-resource.ts              — AsyncStatus, TAB_DATA_STALE_MS, isStale()
 store/dashboard-store.ts             — Home dashboard cache + fetch
 store/calendar-sessions-store.ts     — Calendar session list cache + fetch
+store/calendar-session-detail-store.ts — Per-session detail + class report summary cache
 store/community-feed-store.ts        — Keyed feed cache (home preview key "2")
 store/chat-history-store.ts          — + fetchConversations(), status, lastFetchedAt
 store/chat-store.ts                  — + fetchActiveConversation(), lastFetchedAt
@@ -125,6 +127,7 @@ Dashboard and home community preview served from Phase 11 stores; full community
 | `types/async-resource.ts` | Shared async fetch metadata + stale TTL |
 | `store/dashboard-store.ts` | Dashboard API cache |
 | `store/calendar-sessions-store.ts` | Sessions list API cache |
+| `store/calendar-session-detail-store.ts` | View Details + class summary cache per sessionId |
 | `store/community-feed-store.ts` | Keyed community feed cache |
 | `store/chat-history-store.ts` | + `fetchConversations`, status, reset |
 | `store/chat-store.ts` | + `fetchActiveConversation`, `resetTabData` |

@@ -1,16 +1,11 @@
-import { apiFetch } from "@/lib/api-client";
 import { isSameDay, toDateKey } from "@/lib/calendar/date-utils";
+import { useCalendarSessionDetailStore } from "@/store/calendar-session-detail-store";
 import { useCalendarSessionsStore } from "@/store/calendar-sessions-store";
 import type { CalendarSession, SessionDetail } from "@/types/calendar";
 import { isStale } from "@/types/async-resource";
 import { useAuth } from "@clerk/expo";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
-
-type SessionDetailResponse = SessionDetail &
-  Readonly<{
-    message?: string;
-  }>;
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type UseCalendarSessionsResult = Readonly<{
   sessions: CalendarSession[];
@@ -40,14 +35,24 @@ export function useCalendarSessions(): UseCalendarSessionsResult {
   const lastFetchedAt = useCalendarSessionsStore((state) => state.lastFetchedAt);
   const fetchSessions = useCalendarSessionsStore((state) => state.fetch);
 
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
-
-  const [detailSessionId, setDetailSessionId] = useState<string | null>(null);
-  const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(
-    null,
+  const fetchDetail = useCalendarSessionDetailStore((state) => state.fetchDetail);
+  const prefetchDetails = useCalendarSessionDetailStore(
+    (state) => state.prefetchDetails,
   );
-  const [isDetailLoading, setIsDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [detailSessionId, setDetailSessionId] = useState<string | null>(null);
+
+  const detailEntry = useCalendarSessionDetailStore((state) =>
+    detailSessionId ? (state.entries[detailSessionId] ?? null) : null,
+  );
+
+  const sessionDetail = detailEntry?.detail ?? null;
+  const detailError = detailEntry?.error ?? null;
+  const isDetailLoading =
+    detailSessionId !== null &&
+    detailEntry?.status === "loading" &&
+    sessionDetail === null;
 
   const refresh = useCallback(async (): Promise<void> => {
     await fetchSessions(() => getTokenRef.current(), { force: true });
@@ -89,40 +94,35 @@ export function useCalendarSessions(): UseCalendarSessionsResult {
       );
   }, [sessions, selectedDate]);
 
-  const openSessionDetail = useCallback(async (sessionId: string): Promise<void> => {
-    setDetailSessionId(sessionId);
-    setSessionDetail(null);
-    setDetailError(null);
-    setIsDetailLoading(true);
-
-    try {
-      const token = await getTokenRef.current();
-      const response = await apiFetch<SessionDetailResponse>(
-        `/api/sessions?sessionId=${encodeURIComponent(sessionId)}`,
-        { token },
-      );
-
-      setSessionDetail({
-        session: response.session,
-        report: response.report,
-        transcriptPreview: response.transcriptPreview,
-      });
-    } catch (fetchError) {
-      const message =
-        fetchError instanceof Error
-          ? fetchError.message
-          : "Failed to load session details";
-      setDetailError(message);
-    } finally {
-      setIsDetailLoading(false);
+  useEffect(() => {
+    if (sessionsForSelectedDate.length === 0) {
+      return;
     }
-  }, []);
+
+    void prefetchDetails(
+      () => getTokenRef.current(),
+      sessionsForSelectedDate.map((session) => session.sessionId),
+      { silent: true },
+    );
+  }, [prefetchDetails, sessionsForSelectedDate]);
+
+  const openSessionDetail = useCallback(
+    async (sessionId: string): Promise<void> => {
+      setDetailSessionId(sessionId);
+
+      const cached = useCalendarSessionDetailStore.getState().getDetail(sessionId);
+      const hasCachedDetail = cached?.detail !== null;
+
+      await fetchDetail(() => getTokenRef.current(), sessionId, {
+        silent: hasCachedDetail,
+        force: !hasCachedDetail,
+      });
+    },
+    [fetchDetail],
+  );
 
   const closeSessionDetail = useCallback((): void => {
     setDetailSessionId(null);
-    setSessionDetail(null);
-    setDetailError(null);
-    setIsDetailLoading(false);
   }, []);
 
   return {
