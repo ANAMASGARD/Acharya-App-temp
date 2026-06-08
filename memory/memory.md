@@ -11,7 +11,7 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 10 — Chat Acharya polish** ✅ committed on `dev` (`82a0a53`) |
+| **Phase** | **Phase 10 — Chat Acharya polish** ✅ committed on `dev` (`f0cc500`) |
 | **Previous phases** | Phase 9 swipeable tabs (`0f5f7da`), Phase 8 Home + Community (`40bf9fa`), Phase 7c Question Paper RAG |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat UI, notes, Home + community; **chat keyboard sticky composer needs dev build** (`react-native-keyboard-controller`) |
@@ -141,7 +141,7 @@ Unchanged from Phase 8–9 — see prior sections.
 
 ## 5. Current State
 
-> **Status:** Phase 10 shipped on `dev` (`82a0a53`). Ready for PR to `main`.
+> **Status:** Phase 10 shipped on `dev` (`f0cc500`). Ready for PR to `main`.
 
 | Topic | Implementation |
 |-------|----------------|
@@ -173,7 +173,7 @@ Unchanged from Phase 8–9 — see prior sections.
 
 - Memory doc hash correction
 
-### `82a0a53` — feat: polish Chat Acharya with caching, multilingual coach, and floating composer
+### `f0cc500` — feat: polish Chat Acharya with caching, multilingual coach, and floating composer
 
 - `OPENROUTER_CHATBOX_MODEL` for chat-only LLM; recorder stays on `OPENROUTER_MODEL`
 - Chat coach prompt: 22 Indian languages in native scripts; short answers by default
