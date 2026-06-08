@@ -174,7 +174,7 @@ Unchanged — see prior memory sections.
 
 - (prior entry unchanged)
 
-### `474cfb6` — feat: Home dashboard and teacher community with post images and welcome guide
+### `40bf9fa` — feat: Home dashboard and teacher community with post images and welcome guide
 
 - Live Aura dashboard on Home (`GET /api/dashboard`); stats merged into Recent Activity card
 - Neo4j `neo4j.int()` fix for dashboard LIMIT params
