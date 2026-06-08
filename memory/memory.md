@@ -11,7 +11,7 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 9 — Swipeable tabs + Chat history cleanup** ✅ committed on `dev` (`84053c4`) |
+| **Phase** | **Phase 9 — Swipeable tabs + Chat history cleanup** ✅ committed on `dev` (`0f5f7da`) |
 | **Previous phases** | Phase 8 Home + Community (`40bf9fa`), Phase 7c Question Paper RAG |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes, live Home dashboard + community |
@@ -172,7 +172,7 @@ components/chat/chat-history-drawer.tsx   — live conversations only
 
 ## 5. Current State
 
-> **Status:** Phase 9 shipped on `dev` (`84053c4`). Ready for PR to `main`.
+> **Status:** Phase 9 shipped on `dev` (`0f5f7da`). Ready for PR to `main`.
 
 | Topic | Implementation |
 |-------|----------------|
@@ -201,7 +201,7 @@ components/chat/chat-history-drawer.tsx   — live conversations only
 - Schema + graph-model updates for community labels/constraints
 - Validation: lint, tsc, verify:neo4j, neo4j:test, neo4j:test-api — all pass
 
-### `84053c4` — feat: add swipeable bottom tabs and live-only chat history drawer
+### `0f5f7da` — feat: add swipeable bottom tabs and live-only chat history drawer
 
 - Native swipeable tabs via `SwipeableTabs` (Material Top Tabs, bottom bar, `lazy: false`)
 - Web tap-only `_layout.web.tsx`; upgraded `@react-navigation/native@^7.2.6`
