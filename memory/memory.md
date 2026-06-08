@@ -11,44 +11,39 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 10 — Chat Acharya polish** ✅ committed on `dev` (`f0cc500`) |
-| **Previous phases** | Phase 9 swipeable tabs (`0f5f7da`), Phase 8 Home + Community (`40bf9fa`), Phase 7c Question Paper RAG |
+| **Phase** | **Phase 11 — Tab-wide async preload** ✅ implemented on `dev` (uncommitted) |
+| **Previous phases** | Phase 10 Chat polish (`f0cc500`), Phase 9 swipeable tabs (`0f5f7da`), Phase 8 Home + Community (`40bf9fa`) |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat UI, notes, Home + community; **chat keyboard sticky composer needs dev build** (`react-native-keyboard-controller`) |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
 
 ### What works today
 
+**Tab-wide preload (Phase 11)**
+
+- **Background warm on sign-in** — `TabDataBootstrap` + `useTabBootstrap` fires parallel fetches as soon as signed-in tabs mount; teacher can wait on Recorder while Home, Calendar, Chat, and community preview load in background
+- **Zustand domain stores** — `dashboard-store`, `calendar-sessions-store`, `community-feed-store`; chat list + active conversation fetch consolidated into `chat-history-store` / `chat-store`
+- **Stale-while-revalidate** — 60s TTL (`TAB_DATA_STALE_MS`); tab focus only silent-refreshes when stale; pull-to-refresh / Retry uses `force: true`
+- **No spinner on cache hit** — hooks read warm in-memory data; `isLoading` only when `status === "loading"` and no cached rows
+- **Sign-out reset** — bootstrap clears all tab stores; no stale prior-user data in session
+- **Web parity** — `lazy: false` on web tabs + same bootstrap entry point
+
 **Chat Acharya (Phase 10)**
 
-- **Dedicated chat LLM** — `OPENROUTER_CHATBOX_MODEL` (e.g. `google/gemini-2.5-flash-lite`) for inbox only; recorder/analysis stays on `OPENROUTER_MODEL`
-- **Multilingual coach prompt** — all 22 scheduled Indian languages in native scripts (Devanagari, Tamil, Bengali, Gurmukhi, etc.); short precise answers by default; long answers only when teacher asks
-- **WhatsApp-style caching** — `messageCache` in `chat-store` + `chat-history-store`; instant show on tab/conversation switch; background revalidate; no spinner when cache hit
-- **History drawer** — rename + delete with confirm dialogs; keyboard-aware edit title (`use-keyboard-height`); Aura-backed list prefetch on tab focus
-- **Stage-based loading** — reply phases `sent → analyzing → preparing → almost_ready` tied to stream lifecycle (no infinite text loop); mascot pulse + wave dots in `chat-loading-indicator`
-- **Floating composer UX** — transparent dock (no white strip); absolute overlay; `composerInset` padding so last message stays visible above input
-- **Keyboard** — `react-native-keyboard-controller` (`KeyboardProvider`, `KeyboardStickyView`, `KeyboardAwareScrollView`); Android `softwareKeyboardLayoutMode: pan`
+- Dedicated chat LLM (`OPENROUTER_CHATBOX_MODEL`); multilingual coach prompt; message + history cache; rename/delete; stage-based loading; floating composer; keyboard-controller
 
-**Home Dashboard + Teacher Community (Phase 8)** — unchanged
+**Home Dashboard + Teacher Community (Phase 8)** — dashboard + feed preview now preloaded via Phase 11 stores
 
 **Question Paper Tool (Phase 7c)** — unchanged
 
-**Navigation (Phase 9)**
-
-- Swipeable bottom tabs; web tap-only fallback; live-only chat history (no demo cards)
-
-**API routes (Clerk auth) — chat additions**
-
-| Route | Role |
-|-------|------|
-| `PATCH /api/chat/conversations` | Rename conversation title |
-| `DELETE /api/chat/conversations` | Delete conversation + messages |
+**Navigation (Phase 9)** — swipeable bottom tabs; web tap-only fallback
 
 **Not built yet**
 
 - Chat **Voice** pill → Sarvam conversational agent
 - Group chat unread counts / push notifications (v1 is poll-only)
-- More than 2 subjects per class in curriculum sheet
+- AsyncStorage persist for dashboard/calendar preload (in-memory only by design)
+- Community groups segment preload (still lazy until user taps Groups)
 
 **Validation (last run — 2026-06-08):**
 
@@ -76,82 +71,87 @@ Phase 0–7c   … prior phases (see §6 Commit Log)
 Phase 8      Home Dashboard + Teacher Community
 Phase 9      Swipeable tab navigation + live-only chat history drawer
 Phase 10     Chat Acharya — caching, multilingual prompt, dedicated model, composer UX
+Phase 11     Tab-wide async preload — Zustand bootstrap + stale-while-revalidate across tabs
 ```
 
 ---
 
 ## 3. Architecture Snapshot
 
+### Tab preload (Phase 11)
+
+```
+types/async-resource.ts              — AsyncStatus, TAB_DATA_STALE_MS, isStale()
+store/dashboard-store.ts             — Home dashboard cache + fetch
+store/calendar-sessions-store.ts     — Calendar session list cache + fetch
+store/community-feed-store.ts        — Keyed feed cache (home preview key "2")
+store/chat-history-store.ts          — + fetchConversations(), status, lastFetchedAt
+store/chat-store.ts                  — + fetchActiveConversation(), lastFetchedAt
+hooks/use-tab-bootstrap.ts           — Parallel warm on sign-in; reset on sign-out
+components/navigation/tab-data-bootstrap.tsx — Null mount in tab layouts
+
+hooks/use-home-dashboard.ts          — reads dashboard-store; focus = silent stale refresh
+hooks/use-calendar-sessions.ts       — reads calendar-sessions-store; local UI state for modal/date
+hooks/use-community-feed.ts          — store-backed when limit=2 (home preview)
+hooks/use-chat.ts                    — delegates to chat-store fetch
+hooks/use-chat-history.ts            — delegates to chat-history-store fetch
+
+app/(tabs)/_layout.tsx               — TabDataBootstrap + SwipeableTabs lazy:false
+app/(tabs)/_layout.web.tsx           — TabDataBootstrap + Tabs lazy:false
+```
+
 ### Chat (Phase 10)
 
 ```
 app/api/chat/completions+api.ts     — NDJSON stream; buildChatSystemContent()
 app/api/chat/conversations+api.ts   — list, rename, delete
-lib/prompts/chat-coach.ts           — multilingual + short-answer system prompt
-lib/openrouter.ts                   — streamChatCompletion → OPENROUTER_CHATBOX_MODEL
-lib/ai-config.ts                    — getOpenRouterChatboxConfig()
-lib/chat-stream.ts                  — onStreamOpen / onStreamActivity for reply phases
-lib/graph/chat.ts                   — Aura Conversation + Message graph ops
-
-store/chat-store.ts                 — messages + messageCache + replyPhase
-store/chat-history-store.ts         — conversation list cache
+store/chat-store.ts                 — messages, messageCache, fetchActiveConversation
+store/chat-history-store.ts         — conversation list, fetchConversations
 hooks/use-chat.ts                   — stale-while-revalidate, phase transitions
-hooks/use-chat-history.ts           — drawer + rename/delete + prefetch
-hooks/use-keyboard-height.ts        — shared keyboard lift for dialogs
-
-components/chat/chat-screen.tsx           — KeyboardStickyView floating composer
-components/chat/chat-message-list.tsx     — composerInset paddingBottom
-components/chat/chat-loading-indicator.tsx — mascot + dots + phase label
-components/chat/chat-edit-title-dialog.tsx
-components/chat/chat-delete-confirm-dialog.tsx
+hooks/use-chat-history.ts           — drawer + rename/delete
+components/chat/chat-screen.tsx     — KeyboardStickyView floating composer
 ```
 
 ### Home + community / RAG / navigation
 
-Unchanged from Phase 8–9 — see prior sections.
+Dashboard and home community preview served from Phase 11 stores; full community feed page (`limit: 20`) still local-state fetch on navigation.
 
 ---
 
-## 4. File map — Phase 10 (Chat)
+## 4. File map — Phase 11 (Tab preload)
 
 | File | Role |
 |------|------|
-| `lib/ai-config.ts` | `OPENROUTER_CHATBOX_MODEL` + `getOpenRouterChatboxConfig()` |
-| `lib/prompts/chat-coach.ts` | Multilingual native-script + brevity rules |
-| `lib/openrouter.ts` | Chat stream uses chatbox config |
-| `lib/chat-stream.ts` | Stream callbacks for reply phases |
-| `lib/graph/chat.ts` | Rename/delete conversation Cypher |
-| `app/api/chat/conversations+api.ts` | PATCH/DELETE handlers |
-| `store/chat-store.ts` | Message cache + `ChatReplyPhase` |
-| `store/chat-history-store.ts` | Global conversation list cache |
-| `hooks/use-chat.ts` | Cache hydrate, silent refresh, phase machine |
-| `hooks/use-chat-history.ts` | Rename/delete API + prefetch |
-| `hooks/use-keyboard-height.ts` | Keyboard overlap for modals |
-| `components/chat/chat-loading-indicator.tsx` | Branded loader |
-| `components/chat/chat-edit-title-dialog.tsx` | Rename with keyboard lift |
-| `components/chat/chat-delete-confirm-dialog.tsx` | Delete confirm |
-| `components/chat/chat-screen.tsx` | Floating composer layout |
-| `components/chat/chat-message-list.tsx` | Scroll inset above composer |
-| `types/chat.ts` | `ChatReplyPhase` type |
-| `app/_layout.tsx` | `KeyboardProvider` |
-| `app.json` | Android `softwareKeyboardLayoutMode: pan` |
-| `.env.example` | Documents `OPENROUTER_CHATBOX_MODEL` |
+| `types/async-resource.ts` | Shared async fetch metadata + stale TTL |
+| `store/dashboard-store.ts` | Dashboard API cache |
+| `store/calendar-sessions-store.ts` | Sessions list API cache |
+| `store/community-feed-store.ts` | Keyed community feed cache |
+| `store/chat-history-store.ts` | + `fetchConversations`, status, reset |
+| `store/chat-store.ts` | + `fetchActiveConversation`, `resetTabData` |
+| `hooks/use-tab-bootstrap.ts` | Orchestrates parallel tab warm |
+| `components/navigation/tab-data-bootstrap.tsx` | Bootstrap mount point |
+| `hooks/use-home-dashboard.ts` | Store-backed dashboard hook |
+| `hooks/use-calendar-sessions.ts` | Store-backed sessions hook |
+| `hooks/use-community-feed.ts` | Store-backed when `limit === 2` |
+| `hooks/use-chat.ts` | Store-backed conversation fetch |
+| `hooks/use-chat-history.ts` | Store-backed history fetch |
+| `app/(tabs)/_layout.tsx` | Native bootstrap wiring |
+| `app/(tabs)/_layout.web.tsx` | Web bootstrap + eager tab mount |
 
 ---
 
 ## 5. Current State
 
-> **Status:** Phase 10 shipped on `dev` (`f0cc500`). Ready for PR to `main`.
+> **Status:** Phase 11 implemented on `dev` (uncommitted). Ready for commit + PR.
 
 | Topic | Implementation |
 |-------|----------------|
-| Chat LLM | Separate `OPENROUTER_CHATBOX_MODEL` (Gemini 2.5 Flash Lite); recorder unchanged on `OPENROUTER_MODEL` |
-| Prompt | 22 Indian languages in native script; short answers default |
-| Caching | Message + history list cache; no reload spinner on tab switch when cached |
-| History UX | Rename/delete; keyboard-safe edit dialog |
-| Loading UX | Stage-based status text (not looping); mascot + dots |
-| Composer | Transparent floating bar; last message padded above input |
-| Keyboard | `react-native-keyboard-controller` — dev build recommended |
+| Bootstrap | `Promise.allSettled` warms dashboard, sessions, chat list, active chat, home feed on sign-in |
+| Stores | In-memory Zustand with deduped fetch, 60s stale TTL, sign-out reset |
+| Hooks | Thin selectors; focus = silent revalidate; force refresh on pull/retry |
+| UX | Swipe to Home/Calendar/Chat after ~2s on Recorder → no blocking spinners when warm |
+| Web | `lazy: false` + same bootstrap as native |
+| Out of scope | Persist preload to AsyncStorage; groups segment; full feed page; recorder list API |
 
 ---
 
@@ -185,14 +185,23 @@ Unchanged from Phase 8–9 — see prior sections.
 - Aura graph + API for conversation rename/delete
 - Validation: lint, tsc, verify:neo4j, neo4j:test, neo4j:test-api — all pass
 
+### Phase 11 (uncommitted) — feat: tab-wide async preload with Zustand bootstrap
+
+- `TabDataBootstrap` warms dashboard, calendar sessions, chat history, active conversation, home feed in parallel on sign-in
+- New stores: `dashboard-store`, `calendar-sessions-store`, `community-feed-store`; extended chat stores with fetch actions
+- `types/async-resource.ts` — shared stale-while-revalidate helpers (60s TTL)
+- Hooks refactored to read stores; tab focus silent-revalidates when stale only
+- Web tabs `lazy: false` for eager mount parity with native swipe tabs
+- Sign-out resets all tab preload stores
+
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Merge Phase 10 PR** — `dev` → `main`
-2. **Manual test Chat** — Hindi/Marathi/Tamil native script replies; tab switch cache; rename/delete; keyboard open/close on Android dev build
-3. **Chat voice agent** — Voice pill → Sarvam conversational agent
-4. **Keyboard polish** — fine-tune sticky offset if tab bar overlap on specific devices
+1. **Commit Phase 11** — tab preload feature + memory update
+2. **Manual test preload** — sign in, wait on Recorder 3–5s, swipe tabs; confirm instant content; verify no duplicate fetch within 60s
+3. **Merge PR** — `dev` → `main` (Phase 10 + 11)
+4. **Chat voice agent** — Voice pill → Sarvam conversational agent
 
 ---
 
@@ -228,15 +237,23 @@ npm run start:go -- --clear
 npx expo run:android   # keyboard-controller native module
 ```
 
+### Phase 11 test checklist
+
+1. **Bootstrap** — sign in → land on Recorder → wait 3–5s → Network tab shows dashboard/sessions/chat/feed requests without visiting those tabs
+2. **Instant swipe** — swipe Home / Calendar / Chat → content visible immediately, no full-screen spinner
+3. **Stale TTL** — return to same tab within 60s → no duplicate fetch burst
+4. **Force refresh** — pull-to-refresh Calendar / Retry on Home error → data reloads
+5. **Sign out** — sign out → sign in as same or different user → no stale prior-user tab data
+6. **Web** — same behavior with tab clicks (`lazy: false`)
+
 ### Phase 10 test checklist
 
-1. **Chat send** — status phases advance once (sent → analyzing → preparing → almost ready); mascot loader during stream
-2. **Multilingual** — ask for Hindi answer → Devanagari script, not Roman letters; reply stays short unless "explain in detail"
-3. **Cache** — send messages, switch tab, return → instant messages, no full-screen spinner
-4. **History** — rename conversation (keyboard doesn't hide Save); delete with confirm
-5. **Composer** — no white strip behind input; last message fully visible above chat box when scrolled to end
-6. **Env** — set `OPENROUTER_CHATBOX_MODEL=google/gemini-2.5-flash-lite`; recorder still uses `OPENROUTER_MODEL`
+1. **Chat send** — status phases advance once; mascot loader during stream
+2. **Multilingual** — Hindi answer in Devanagari; short by default
+3. **Cache** — tab switch returns instant messages
+4. **History** — rename/delete with keyboard-safe dialog
+5. **Composer** — no white strip; last message visible above input
 
 ---
 
-*Last updated: 2026-06-08 — Phase 10 Chat Acharya polish on `dev`.*
+*Last updated: 2026-06-08 — Phase 11 tab-wide async preload on `dev` (uncommitted).*

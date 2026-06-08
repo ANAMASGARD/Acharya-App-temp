@@ -1,17 +1,13 @@
 import { apiFetch } from "@/lib/api-client";
 import { useChatHistoryStore } from "@/store/chat-history-store";
-import type { ChatConversationSummary } from "@/types/chat";
+import { isStale } from "@/types/async-resource";
 import { useAuth } from "@clerk/expo";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 
-type ConversationListResponse = Readonly<{
-  conversations: ChatConversationSummary[];
-}>;
-
 type UseChatHistoryResult = Readonly<{
   isOpen: boolean;
-  conversations: ChatConversationSummary[];
+  conversations: ReturnType<typeof useChatHistoryStore.getState>["conversations"];
   isLoading: boolean;
   error: string | null;
   openDrawer: () => Promise<void>;
@@ -26,54 +22,37 @@ export function useChatHistory(): UseChatHistoryResult {
   getTokenRef.current = getToken;
 
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const conversations = useChatHistoryStore((state) => state.conversations);
-  const setConversations = useChatHistoryStore((state) => state.setConversations);
+  const status = useChatHistoryStore((state) => state.status);
+  const error = useChatHistoryStore((state) => state.error);
+  const lastFetchedAt = useChatHistoryStore((state) => state.lastFetchedAt);
+  const fetchConversations = useChatHistoryStore(
+    (state) => state.fetchConversations,
+  );
   const removeConversation = useChatHistoryStore(
     (state) => state.removeConversation,
   );
   const renameConversationInStore = useChatHistoryStore(
     (state) => state.renameConversation,
   );
+  const setError = useCallback((message: string | null) => {
+    useChatHistoryStore.setState({ error: message });
+  }, []);
 
   const loadConversations = useCallback(
-    async (options?: Readonly<{ silent?: boolean }>): Promise<void> => {
-      const hasCachedList = useChatHistoryStore.getState().conversations.length > 0;
-
-      if (!options?.silent || !hasCachedList) {
-        setIsLoading(!hasCachedList);
-      }
-
-      setError(null);
-
-      try {
-        const token = await getTokenRef.current();
-        const response = await apiFetch<ConversationListResponse>(
-          "/api/chat/conversations?list=1",
-          { token },
-        );
-        setConversations(response.conversations);
-      } catch (fetchError) {
-        if (!hasCachedList) {
-          const message =
-            fetchError instanceof Error
-              ? fetchError.message
-              : "Failed to load chat history";
-          setError(message);
-        }
-      } finally {
-        setIsLoading(false);
-      }
+    async (options?: Readonly<{ silent?: boolean; force?: boolean }>): Promise<void> => {
+      await fetchConversations(() => getTokenRef.current(), options);
     },
-    [setConversations],
+    [fetchConversations],
   );
 
   useFocusEffect(
     useCallback(() => {
-      void loadConversations({ silent: true });
-    }, [loadConversations]),
+      if (isStale(lastFetchedAt)) {
+        void loadConversations({ silent: true });
+      }
+    }, [lastFetchedAt, loadConversations]),
   );
 
   const openDrawer = useCallback(async (): Promise<void> => {
@@ -105,7 +84,7 @@ export function useChatHistory(): UseChatHistoryResult {
         setError(message);
       }
     },
-    [removeConversation],
+    [removeConversation, setError],
   );
 
   const renameConversation = useCallback(
@@ -127,7 +106,7 @@ export function useChatHistory(): UseChatHistoryResult {
   return {
     isOpen,
     conversations,
-    isLoading,
+    isLoading: status === "loading" && conversations.length === 0,
     error,
     openDrawer,
     closeDrawer,

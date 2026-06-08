@@ -1,4 +1,5 @@
 import { AcharyaTabBar } from "@/components/navigation/acharya-tab-bar";
+import { TabDataBootstrap } from "@/components/navigation/tab-data-bootstrap";
 import { SwipeableTabs } from "@/components/navigation/swipeable-tabs";
 import { colors } from "@/theme/colors";
 import { useAuth } from "@clerk/expo";
@@ -34,7 +35,9 @@ export default function TabsLayout(): React.ReactElement | null {
   }
 
   return (
-    <SwipeableTabs
+    <>
+      <TabDataBootstrap />
+      <SwipeableTabs
       initialRouteName="recorder"
       tabBarPosition="bottom"
       initialLayout={TAB_INITIAL_LAYOUT}
@@ -52,5 +55,6 @@ export default function TabsLayout(): React.ReactElement | null {
       <SwipeableTabs.Screen name="chat" options={{ title: "Chat" }} />
       <SwipeableTabs.Screen name="profile" options={{ title: "Profile" }} />
     </SwipeableTabs>
+    </>
   );
 }

@@ -1,14 +1,11 @@
 import { apiFetch } from "@/lib/api-client";
 import { isSameDay, toDateKey } from "@/lib/calendar/date-utils";
+import { useCalendarSessionsStore } from "@/store/calendar-sessions-store";
 import type { CalendarSession, SessionDetail } from "@/types/calendar";
-import type { SessionNode } from "@/types/graph";
+import { isStale } from "@/types/async-resource";
 import { useAuth } from "@clerk/expo";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-
-type SessionsResponse = Readonly<{
-  sessions: SessionNode[];
-}>;
 
 type SessionDetailResponse = SessionDetail &
   Readonly<{
@@ -37,10 +34,13 @@ export function useCalendarSessions(): UseCalendarSessionsResult {
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
 
-  const [sessions, setSessions] = useState<CalendarSession[]>([]);
+  const sessions = useCalendarSessionsStore((state) => state.sessions);
+  const status = useCalendarSessionsStore((state) => state.status);
+  const error = useCalendarSessionsStore((state) => state.error);
+  const lastFetchedAt = useCalendarSessionsStore((state) => state.lastFetchedAt);
+  const fetchSessions = useCalendarSessionsStore((state) => state.fetch);
+
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [hasFetched, setHasFetched] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const [detailSessionId, setDetailSessionId] = useState<string | null>(null);
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(
@@ -50,35 +50,15 @@ export function useCalendarSessions(): UseCalendarSessionsResult {
   const [detailError, setDetailError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setError(null);
-
-    try {
-      const token = await getTokenRef.current();
-      const response = await apiFetch<SessionsResponse>("/api/sessions", {
-        token,
-      });
-
-      const sorted = [...response.sessions].sort(
-        (a, b) =>
-          new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
-      );
-
-      setSessions(sorted);
-    } catch (fetchError) {
-      const message =
-        fetchError instanceof Error
-          ? fetchError.message
-          : "Failed to load sessions";
-      setError(message);
-    } finally {
-      setHasFetched(true);
-    }
-  }, []);
+    await fetchSessions(() => getTokenRef.current(), { force: true });
+  }, [fetchSessions]);
 
   useFocusEffect(
     useCallback(() => {
-      void refresh();
-    }, [refresh]),
+      if (isStale(lastFetchedAt)) {
+        void fetchSessions(() => getTokenRef.current(), { silent: true });
+      }
+    }, [fetchSessions, lastFetchedAt]),
   );
 
   const markedDateKeys = useMemo(() => {
@@ -151,7 +131,7 @@ export function useCalendarSessions(): UseCalendarSessionsResult {
     setSelectedDate,
     sessionsForSelectedDate,
     markedDateKeys,
-    hasFetched,
+    hasFetched: status !== "idle",
     error,
     refresh,
     detailSessionId,

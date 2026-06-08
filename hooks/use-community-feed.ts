@@ -1,4 +1,8 @@
 import { apiFetch } from "@/lib/api-client";
+import {
+  makeFeedCacheKey,
+  useCommunityFeedStore,
+} from "@/store/community-feed-store";
 import type { CommunityPost, PostsFeedResponse, VoteValue } from "@/types/community";
 import { useAuth } from "@clerk/expo";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,21 +28,48 @@ type UseCommunityFeedResult = Readonly<{
 export function useCommunityFeed(
   options: UseCommunityFeedOptions = {},
 ): UseCommunityFeedResult {
+  const limit = options.limit ?? 5;
+  const groupId = options.groupId ?? null;
+  const autoFetch = options.autoFetch !== false;
+  const useStore = limit === 2 && groupId === null;
+
   const { getToken } = useAuth();
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
 
-  const limit = options.limit ?? 5;
-  const groupId = options.groupId ?? null;
+  const cacheKey = makeFeedCacheKey(limit, groupId);
+  const storeEntry = useCommunityFeedStore((state) =>
+    useStore ? (state.entries[cacheKey] ?? null) : null,
+  );
+  const fetchFeed = useCommunityFeedStore((state) => state.fetch);
+  const updateStorePosts = useCommunityFeedStore((state) => state.updatePosts);
 
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [localPosts, setLocalPosts] = useState<CommunityPost[]>([]);
+  const [localIsLoading, setLocalIsLoading] = useState(false);
+  const [localHasFetched, setLocalHasFetched] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const posts = useStore ? (storeEntry?.posts ?? []) : localPosts;
+  const isLoading = useStore
+    ? storeEntry?.status === "loading" && posts.length === 0
+    : localIsLoading;
+  const hasFetched = useStore
+    ? (storeEntry?.status ?? "idle") !== "idle"
+    : localHasFetched;
+  const error = useStore ? (storeEntry?.error ?? null) : localError;
 
   const refresh = useCallback(async (): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
+    if (useStore) {
+      await fetchFeed(() => getTokenRef.current(), {
+        limit,
+        groupId,
+        force: true,
+      });
+      return;
+    }
+
+    setLocalIsLoading(true);
+    setLocalError(null);
 
     try {
       const token = await getTokenRef.current();
@@ -53,27 +84,53 @@ export function useCommunityFeed(
         { token },
       );
 
-      setPosts([...response.posts]);
-      setHasFetched(true);
+      setLocalPosts([...response.posts]);
+      setLocalHasFetched(true);
     } catch (fetchError) {
       const message =
         fetchError instanceof Error ? fetchError.message : "Failed to load feed";
-      setError(message);
-      setHasFetched(true);
+      setLocalError(message);
+      setLocalHasFetched(true);
     } finally {
-      setIsLoading(false);
+      setLocalIsLoading(false);
     }
-  }, [groupId, limit]);
+  }, [fetchFeed, groupId, limit, useStore]);
+
+  useEffect(() => {
+    if (!autoFetch) {
+      return;
+    }
+
+    if (useStore) {
+      void fetchFeed(() => getTokenRef.current(), {
+        limit,
+        groupId,
+        silent: (storeEntry?.posts.length ?? 0) > 0,
+      });
+      return;
+    }
+
+    void refresh();
+  }, [autoFetch, fetchFeed, groupId, limit, refresh, storeEntry?.posts.length, useStore]);
 
   const updatePost = useCallback(
     (postId: string, patch: Partial<CommunityPost>): void => {
-      setPosts((current) =>
+      if (useStore) {
+        updateStorePosts(cacheKey, (current) =>
+          current.map((post) =>
+            post.postId === postId ? { ...post, ...patch } : post,
+          ),
+        );
+        return;
+      }
+
+      setLocalPosts((current) =>
         current.map((post) =>
           post.postId === postId ? { ...post, ...patch } : post,
         ),
       );
     },
-    [],
+    [cacheKey, updateStorePosts, useStore],
   );
 
   const votePost = useCallback(
@@ -171,9 +228,16 @@ export function useCommunityFeed(
         token,
       });
 
-      setPosts((current) => current.filter((post) => post.postId !== postId));
+      if (useStore) {
+        updateStorePosts(cacheKey, (current) =>
+          current.filter((post) => post.postId !== postId),
+        );
+        return;
+      }
+
+      setLocalPosts((current) => current.filter((post) => post.postId !== postId));
     },
-    [],
+    [cacheKey, updateStorePosts, useStore],
   );
 
   const toggleSave = useCallback(
@@ -202,14 +266,6 @@ export function useCommunityFeed(
     },
     [posts, updatePost],
   );
-
-  useEffect(() => {
-    if (options.autoFetch === false) {
-      return;
-    }
-
-    void refresh();
-  }, [options.autoFetch, refresh]);
 
   return {
     posts,
