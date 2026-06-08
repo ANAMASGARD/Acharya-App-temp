@@ -19,7 +19,6 @@ export type ChatConversationSummary = Readonly<{
   preview: string;
   title: string;
   messageCount: number;
-  isDemo?: boolean;
 }>;
 
 export type VoiceInputStatus = "idle" | "recording" | "transcribing";

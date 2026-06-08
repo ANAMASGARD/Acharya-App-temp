@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 8 — Home Dashboard + Teacher Community** ✅ committed on `dev` |
-| **Previous phases** | Phase 7c Question Paper RAG (`0a3af7e`), Phase 7b Notes UI, Phase 7 Chat |
+| **Phase** | **Phase 9 — Swipeable tabs + Chat history cleanup** ✅ committed on `dev` (`84053c4`) |
+| **Previous phases** | Phase 8 Home + Community (`40bf9fa`), Phase 7c Question Paper RAG |
 | **Branch** | `dev` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes, live Home dashboard + community |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
@@ -52,7 +52,17 @@
 | `GET /api/community/groups/[groupId]` | Group detail + members |
 | `GET/POST .../messages` | Group chat |
 
-**Chat, Recorder, Calendar, Auth, Profile** — unchanged; Chat tab remains AI coach only
+**Navigation (Phase 9)**
+
+- **Swipeable bottom tabs** — WhatsApp-style horizontal swipe between Home, Calendar, Recorder, Chat, Profile on native (`SwipeableTabs` + Material Top Tabs, `lazy: false` for recorder continuity)
+- **Web tabs** — tap-only `_layout.web.tsx` fallback
+- **React Navigation** — `@react-navigation/native@^7.2.6` (required by material-top-tabs)
+
+**Chat (Phase 9)**
+
+- **Chat history drawer** — Aura-backed conversations only; removed `DEMO_CHAT_HISTORY` / “Teacher Support Chat” placeholders
+
+**Chat, Recorder, Calendar, Auth, Profile** — Chat tab AI coach; recorder default tab
 
 **Not built yet**
 
@@ -78,7 +88,8 @@
 
 ```
 Phase 0–7c   … prior phases (see §6 Commit Log)
-Phase 8      Home Dashboard + Teacher Community — live Aura dashboard, Reddit-style feed, groups, group chat, post images
+Phase 8      Home Dashboard + Teacher Community
+Phase 9      Swipeable tab navigation + live-only chat history drawer
 ```
 
 ---
@@ -106,6 +117,16 @@ lib/dashboard/streak.ts      — consecutive-day streak in TypeScript
 ### Question paper RAG (Phase 7c)
 
 Unchanged — see prior memory sections.
+
+### Navigation + chat history (Phase 9)
+
+```
+app/(tabs)/_layout.tsx          — SwipeableTabs (native)
+app/(tabs)/_layout.web.tsx      — tap-only Tabs (web)
+components/navigation/swipeable-tabs.tsx
+components/navigation/acharya-tab-bar.tsx — MaterialTopTabBarProps + jumpTo(route.key)
+components/chat/chat-history-drawer.tsx   — live conversations only
+```
 
 ---
 
@@ -151,20 +172,14 @@ Unchanged — see prior memory sections.
 
 ## 5. Current State
 
-> **Status:** Phase 8 shipped on `dev`. No in-progress feature branch work.
+> **Status:** Phase 9 shipped on `dev` (`84053c4`). Ready for PR to `main`.
 
 | Topic | Implementation |
 |-------|----------------|
-| Home data | Aura live — no static mock feed |
-| Streak | Distinct session dates from Cypher → `computeTeachingStreak` in TS |
-| Vote score | Single write transaction + delta table; Teacher MERGE before vote/save |
-| API params | `lib/api-route-params.ts` — URL fallback for nested Expo API routes |
-| Welcome post | `ensureAcharyaWelcomePost()` on every feed load; ASCII guide; footer-only delete |
-| Post actions | Bookmark top-right; delete footer only (card + detail) |
-| Home performance | Dashboard + feed preview on load; groups lazy on segment tap |
-| Group chat v1 | 5s poll while focused; no unread counts |
-| Join codes | Uppercase on write; case-insensitive lookup |
-| Demo seed | `COMMUNITY_DEMO_SEED=true` — LLM posts on empty feed; cleanup: `MATCH (p:CommunityPost {demoSeed:true}) WHERE NOT coalesce(p.demoWelcome,false) DETACH DELETE p` |
+| Tab navigation | Native swipe via Material Top Tabs; web tap-only; custom `AcharyaTabBar` preserved |
+| Recorder + swipe | `lazy: false` — recording continues when swiping to other tabs |
+| Chat history | No demo cards; empty state when no Aura conversations |
+| Home / community | Unchanged from Phase 8 |
 
 ---
 
@@ -186,14 +201,21 @@ Unchanged — see prior memory sections.
 - Schema + graph-model updates for community labels/constraints
 - Validation: lint, tsc, verify:neo4j, neo4j:test, neo4j:test-api — all pass
 
+### `84053c4` — feat: add swipeable bottom tabs and live-only chat history drawer
+
+- Native swipeable tabs via `SwipeableTabs` (Material Top Tabs, bottom bar, `lazy: false`)
+- Web tap-only `_layout.web.tsx`; upgraded `@react-navigation/native@^7.2.6`
+- Removed `DEMO_CHAT_HISTORY` — chat drawer shows Aura conversations only
+- Validation: lint, tsc, verify:neo4j, neo4j:test, neo4j:test-api — all pass
+
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **Merge Phase 8 PR** — `dev` → `main`
-2. **`npm run neo4j:apply-schema`** on Aura if community constraints not yet applied
-3. **Manual test** — two teacher accounts: post with images, vote, save, delete welcome post, group join, group chat
-4. **Chat voice agent** — Voice pill → Sarvam conversational agent
+1. **Merge Phase 9 PR** — `dev` → `main`
+2. **Manual test swipe tabs** — tap + swipe sync; record while swiping away from Recorder tab
+3. **Chat voice agent** — Voice pill → Sarvam conversational agent
+4. **`npm run neo4j:apply-schema`** on Aura if community constraints not yet applied
 
 ---
 
@@ -241,4 +263,4 @@ npm run start:go -- --clear
 
 ---
 
-*Last updated: 2026-06-08 — Phase 8 committed on `dev`; all validation checks pass.*
+*Last updated: 2026-06-08 — Phase 9 swipeable tabs + chat history cleanup on `dev`.*

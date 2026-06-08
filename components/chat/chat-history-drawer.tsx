@@ -1,12 +1,11 @@
 import { ChatHistoryCard } from "@/components/chat/chat-history-card";
-import { DEMO_CHAT_HISTORY } from "@/constants/chat-history-demo";
 import { colors } from "@/theme/colors";
 import { borderWidths, radii, shadows, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import type { ChatConversationSummary } from "@/types/chat";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -63,23 +62,9 @@ export function ChatHistoryDrawer({
 }: Props): React.ReactElement | null {
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
-  const [hiddenDemoIds, setHiddenDemoIds] = useState<string[]>([]);
 
   const translateX = useSharedValue(-DRAWER_WIDTH);
   const backdropProgress = useSharedValue(0);
-
-  const displayConversations = useMemo(() => {
-    const live = conversations;
-    const demo = DEMO_CHAT_HISTORY.filter(
-      (item) => !hiddenDemoIds.includes(item.conversationId),
-    );
-
-    if (live.length > 0) {
-      return live;
-    }
-
-    return demo;
-  }, [conversations, hiddenDemoIds]);
 
   const finishClose = (): void => {
     setMounted(false);
@@ -131,21 +116,11 @@ export function ChatHistoryDrawer({
   }));
 
   const handleSelect = (conversation: ChatConversationSummary): void => {
-    if (conversation.isDemo) {
-      onClose();
-      return;
-    }
-
     onSelectConversation(conversation.conversationId);
     onClose();
   };
 
   const handleDelete = (conversation: ChatConversationSummary): void => {
-    if (conversation.isDemo) {
-      setHiddenDemoIds((current) => [...current, conversation.conversationId]);
-      return;
-    }
-
     void onDeleteConversation(conversation.conversationId);
   };
 
@@ -240,9 +215,7 @@ export function ChatHistoryDrawer({
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Chat History</Text>
                 <View style={styles.countBadge}>
-                  <Text style={styles.countText}>
-                    {displayConversations.length}
-                  </Text>
+                  <Text style={styles.countText}>{conversations.length}</Text>
                 </View>
               </View>
 
@@ -257,7 +230,7 @@ export function ChatHistoryDrawer({
                 showsVerticalScrollIndicator={false}
                 style={styles.list}
               >
-                {displayConversations.map((conversation) => (
+                {conversations.map((conversation) => (
                   <ChatHistoryCard
                     conversation={conversation}
                     key={conversation.conversationId}
@@ -270,7 +243,7 @@ export function ChatHistoryDrawer({
                   />
                 ))}
 
-                {!isLoading && displayConversations.length === 0 ? (
+                {!isLoading && conversations.length === 0 ? (
                   <Text style={styles.emptyText}>
                     No chats yet. Start a new conversation.
                   </Text>
