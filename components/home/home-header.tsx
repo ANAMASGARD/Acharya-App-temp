@@ -5,7 +5,7 @@ import { fontFamilies } from "@/theme/typography";
 import { Image } from "expo-image";
 import { StyleSheet, Text, View } from "react-native";
 
-const LOGO_SIZE = 100;
+const LOGO_SIZE = 64;
 
 type Props = Readonly<{
   greetingText: string;
@@ -48,16 +48,16 @@ const styles = StyleSheet.create({
   greeting: {
     color: colors.foreground,
     fontFamily: fontFamilies.head,
-    fontSize: 26,
-    lineHeight: 32,
-    minHeight: 32,
+    fontSize: 22,
+    lineHeight: 28,
+    minHeight: 28,
   },
   header: {
     backgroundColor: colors.primary,
     overflow: "hidden",
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
   },
   logo: {
     height: LOGO_SIZE,
@@ -70,8 +70,8 @@ const styles = StyleSheet.create({
   streakLabel: {
     color: colors.foreground,
     fontFamily: fontFamilies.sans,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   streakRow: {
     alignItems: "center",

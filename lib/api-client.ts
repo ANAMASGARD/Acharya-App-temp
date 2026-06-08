@@ -87,12 +87,14 @@ export async function apiMultipartFetch<T>(
 
   if (!response.ok) {
     const message =
-      typeof payload === "object" &&
-      payload !== null &&
-      "error" in payload &&
-      typeof (payload as { error: { message?: string } }).error === "object" &&
-      (payload as { error: { message?: string } }).error?.message
-        ? String((payload as { error: { message?: string } }).error.message)
+      typeof payload === "object" && payload !== null && "error" in payload
+        ? typeof (payload as { error: unknown }).error === "string"
+          ? (payload as { error: string }).error
+          : typeof (payload as { error: { message?: string } }).error ===
+              "object" &&
+            (payload as { error: { message?: string } }).error?.message
+            ? String((payload as { error: { message?: string } }).error.message)
+            : `Request failed (${response.status})`
         : `Request failed (${response.status})`;
 
     throw new Error(message);

@@ -19,6 +19,13 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `AudioChunk` | `chunkId` | Per-chunk STT text during recording |
 | `ChatConversation` | `conversationId` | In-app Chat Acharya thread (`contextSnapshot` set once at create) |
 | `ChatMessage` | `messageId` | User or assistant message in a conversation |
+| `CommunityPost` | `postId` | Teacher community feed post (`score`, `commentCount`) |
+| `CommunityPostImage` | `imageId` | Image attachment metadata for a community post |
+| `CommunityComment` | `commentId` | Comment on a community post |
+| `CommunityGroup` | `groupId` | Teacher group with unique `joinCode` |
+| `GroupMessage` | `messageId` | Message in a teacher group chat |
+
+`Teacher` also caches `displayName` and `avatarLetter` (Clerk profile projection, not auth).
 
 ## Relationships (feature-driving)
 
@@ -36,6 +43,14 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `(VerificationReport)-[:CHECKED_AGAINST]->(Chunk)` | Graph trace for judges / demo |
 | `(Teacher)-[:HAS_CONVERSATION]->(ChatConversation)` | Chat Acharya history per teacher |
 | `(ChatConversation)-[:HAS_MESSAGE]->(ChatMessage)` | Ordered chat turns |
+| `(Teacher)-[:AUTHORED]->(CommunityPost\|CommunityComment\|GroupMessage)` | Community authorship |
+| `(Teacher)-[:VOTED { value }]->(CommunityPost)` | Post upvote/downvote (one per teacher) |
+| `(Teacher)-[:SAVED]->(CommunityPost)` | Saved/bookmarked posts |
+| `(Teacher)-[:MEMBER_OF]->(CommunityGroup)` | Group membership |
+| `(CommunityPost)-[:IN_GROUP]->(CommunityGroup)` | Optional group-scoped post |
+| `(CommunityPost)-[:HAS_COMMENT]->(CommunityComment)` | Post comment thread |
+| `(CommunityPost)-[:HAS_IMAGE]->(CommunityPostImage)` | Post image attachments |
+| `(CommunityGroup)-[:HAS_MESSAGE]->(GroupMessage)` | Group chat messages |
 
 ## Example queries (live Aura — not mocks)
 
@@ -81,7 +96,7 @@ RETURN note, ref, ch, note.text AS noteText, ref.text AS refText
 
 Applied to Aura (idempotent `IF NOT EXISTS`):
 
-- **11 uniqueness constraints** — `Teacher`, `Session`, `Transcript`, `Report`, `CurriculumBook`, `Chapter`, `Chunk`, `AudioChunk`, `VerificationReport`, `ChatConversation`, `ChatMessage`
+- **15 uniqueness constraints** — prior labels plus `CommunityPost`, `CommunityComment`, `CommunityGroup`, `GroupMessage`
 - **Lookup indexes** — session dates, `Chunk.source`, `CurriculumBook` class/subject + `isPreloaded`, `VerificationReport.mode`, chat message timestamps
 - **Vector index** — `chunk_embedding` on `Chunk.embedding` (1536 dimensions, cosine — matches `openai/text-embedding-3-small`)
 

@@ -34,6 +34,9 @@ yarn-error.*
 .env
 .env*.local
 
+# uploaded community post images (server-local storage)
+uploads/
+
 # typescript
 *.tsbuildinfo
 

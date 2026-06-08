@@ -1,14 +1,14 @@
+import { CommunitySection } from "@/components/community/community-section";
 import { HomeHeader } from "@/components/home/home-header";
-import { NotesGapsCard } from "@/components/home/notes-gaps-card";
 import { RecentActivityCard } from "@/components/home/recent-activity-card";
-import { StartSessionCard } from "@/components/home/start-session-card";
-import { getHomeDashboardContent } from "@/data/home-dashboard";
+import { useHomeDashboard } from "@/hooks/use-home-dashboard";
 import { useHomeGreeting } from "@/hooks/use-home-greeting";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/tokens";
+import { fontFamilies } from "@/theme/typography";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const TAB_BAR_CLEARANCE = 100;
@@ -16,7 +16,8 @@ const TAB_BAR_CLEARANCE = 100;
 export function HomeScreen(): React.ReactElement {
   const router = useRouter();
   const { greetingText } = useHomeGreeting();
-  const content = getHomeDashboardContent();
+  const { dashboard, recentActivity, isLoading, error, refresh } =
+    useHomeDashboard();
 
   const goToRecorder = (): void => {
     router.push("/(tabs)/recorder");
@@ -32,12 +33,36 @@ export function HomeScreen(): React.ReactElement {
       >
         <HomeHeader
           greetingText={greetingText}
-          streakDays={content.streakDays}
+          streakDays={dashboard?.stats.streakDays ?? 0}
         />
+
+        {error ? (
+          <View style={styles.errorWrap}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void refresh();
+              }}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryLabel}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <View style={styles.cards}>
-          <RecentActivityCard items={content.recentActivity} />
-          <NotesGapsCard content={content.notesGaps} />
-          <StartSessionCard content={content.startSession} onPress={goToRecorder} />
+          <RecentActivityCard
+            isLoading={isLoading}
+            items={recentActivity}
+            onStartClass={goToRecorder}
+            onVerifyNotes={() => router.push("/notes/upload")}
+            stats={dashboard?.stats ?? null}
+          />
+        </View>
+
+        <View style={styles.communityWrap}>
+          <CommunitySection />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -46,11 +71,37 @@ export function HomeScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   cards: {
-    backgroundColor: colors.cream,
-    gap: spacing.lg,
-    paddingBottom: spacing.lg,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  communityWrap: {
+    paddingBottom: spacing.md,
+    paddingTop: spacing.md,
+  },
+  errorText: {
+    color: colors.destructive,
+    fontFamily: fontFamilies.sans,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  errorWrap: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  retryButton: {
+    alignSelf: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  retryLabel: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 14,
+    lineHeight: 18,
   },
   safeArea: {
     backgroundColor: colors.cream,
