@@ -1,7 +1,8 @@
 import type { HomeDashboardContent } from "@/types/home-dashboard";
 
+/** Static copy only — Home screen uses live Aura data via use-home-dashboard. */
 const HOME_DASHBOARD_CONTENT: HomeDashboardContent = {
-  streakDays: 0,
+  stats: null,
   recentActivity: [],
   notesGaps: {
     title: "Verified Notes Gaps",

@@ -1,4 +1,9 @@
-import neo4j, { type Driver, type QueryResult, type RecordShape } from "neo4j-driver";
+import neo4j, {
+  type Driver,
+  type ManagedTransaction,
+  type QueryResult,
+  type RecordShape,
+} from "neo4j-driver";
 
 type Neo4jConfig = Readonly<{
   uri: string;
@@ -78,6 +83,19 @@ export async function runWriteQuery<T extends RecordShape = RecordShape>(
     );
 
     return result.records.map((record) => record.toObject() as T);
+  } finally {
+    await session.close();
+  }
+}
+
+export async function runInWriteTransaction<T>(
+  fn: (tx: ManagedTransaction) => Promise<T>,
+): Promise<T> {
+  const { database } = getNeo4jConfig();
+  const session = getNeo4jDriver().session({ database });
+
+  try {
+    return await session.executeWrite(fn);
   } finally {
     await session.close();
   }

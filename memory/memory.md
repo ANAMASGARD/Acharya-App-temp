@@ -10,185 +10,189 @@
 
 | Field | Value |
 |-------|--------|
-| **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate) |
-| **Phase** | **Phase 7c — Question Paper Graph RAG** ✅ **committed** (`0a3af7e`) |
-| **Previous phases** | Phase 7b Notes UI (`a50a59b`), Phase 7 Chat (`4e652bc`), Phase 6b calendar (`d692ea9`) |
+| **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
+| **Phase** | **Phase 8 — Home Dashboard + Teacher Community** ✅ committed on `dev` |
+| **Previous phases** | Phase 7c Question Paper RAG (`0a3af7e`), Phase 7b Notes UI, Phase 7 Chat |
 | **Branch** | `dev` |
-| **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes upload + generate UI |
+| **Runnable in Expo Go?** | Yes — recorder, calendar, chat, notes, live Home dashboard + community |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
 
 ### What works today
 
+**Home Dashboard + Teacher Community (Phase 8)**
+
+- **Live Home dashboard** — stats merged inside Recent Activity card (classes, notes, avg score); compact header; activity max 2 on Home
+- **Dashboard fix** — Neo4j `LIMIT` uses `neo4j.int()` (fixes `5.0 is not a valid integer` error)
+- **Community on Home** — feed preview (max 2 posts), compact create-post banner; visible without scroll on most phones
+- **Post images** — create post supports gallery/camera/files (JPG, PNG, WEBP, HEIC, GIF, etc.); up to 4 images; served via `GET /api/community/images/[imageId]`
+- **Acharya welcome post** — always upserted in Aura on feed load; ASCII-art quick-start guide; pinned first; deletable; does not re-appear after delete
+- **Post UX** — card content tappable for full post; bookmark icon top-right only; delete in footer only; vote/save/delete wired with Teacher MERGE fix + API route param fallback
+- **Full community stack** — `/community/feed`, create post, post detail + comments, groups, join by code, group chat (5s poll)
+- **Neo4j community graph** — `CommunityPost`, `CommunityComment`, `CommunityGroup`, `GroupMessage`, `CommunityPostImage` + vote/save/member relationships
+- **Transactional vote scores** — `CommunityPost.score` updated in single write tx with delta table
+- **Deep links** — share copies `acharyaapp://community/post/{postId}`
+
 **Question Paper Tool (Phase 7c) ✅**
 
-- **`/notes/upload`** — verify question papers (PDF/DOC/image/camera) against NCERT books in Aura
-- **`/notes/generate`** — generate unit test / half yearly / surprise quiz / model papers from embedded curriculum
-- **Hybrid Graph RAG** — vector ANN → graph join → keyword boost → single OpenRouter LLM call (verify + generate)
-- **11 demo NCERT books embedded** in Aura (~1,987 curriculum chunks, `openai/text-embedding-3-small`, dim 1536)
-- **Curriculum sheet** — 2 subjects per class; green **Available** + tick from live Aura; yellow **Coming soon** placeholder
-- **Book ingest pipeline** — `npm run books:embed-missing` (safe incremental), `npm run books:status`
+- `/notes/upload`, `/notes/generate`, hybrid Graph RAG, 11 demo NCERT books embedded
 
-**API routes (Clerk auth)**
+**API routes (Clerk auth) — community + dashboard**
 
 | Route | Role |
 |-------|------|
-| `GET /api/curriculum/books` | Books + chapters for class/subject |
-| `GET /api/curriculum/availability` | Class+subject pairs with embedded chunks |
-| `POST /api/notes/verify` | Multipart verify → gaps + alignment |
-| `POST /api/notes/generate` | JSON generate → structured paper |
+| `GET /api/dashboard` | Live stats + recent activity |
+| `GET/POST /api/community/posts` | Feed + create post |
+| `GET /api/community/posts/[postId]` | Post detail + comments |
+| `POST/DELETE .../vote` | Upvote/downvote/remove |
+| `POST/DELETE .../save` | Bookmark toggle |
+| `GET/POST .../comments` | Comment thread |
+| `GET /api/community/images/[imageId]` | Serve uploaded post images |
+| `GET/POST /api/community/groups` | List/create groups |
+| `POST /api/community/groups/join` | Join by code (case-insensitive) |
+| `GET /api/community/groups/[groupId]` | Group detail + members |
+| `GET/POST .../messages` | Group chat |
 
-**Chat, Recorder, Calendar, Auth, Profile** — unchanged from prior phases
+**Chat, Recorder, Calendar, Auth, Profile** — unchanged; Chat tab remains AI coach only
 
 **Not built yet**
 
-- Home `NotesGapsCard` CTA → `/notes/upload`
 - Chat **Voice** pill → Sarvam conversational agent
-- Live Home dashboard from Aura
-- More than 2 subjects per class in curriculum sheet (placeholder pattern ready)
+- Group chat unread counts / push notifications (v1 is poll-only)
+- More than 2 subjects per class in curriculum sheet
 
-**Validation (last run — 2026-06-07):** `npm run lint` + `npx tsc --noEmit` + `npm run verify:neo4j` + `npm run neo4j:test` + `npm run neo4j:test-api` — **pass**
+**Validation (last run — 2026-06-08):**
 
-**Aura schema:** `neo4j/schema.cypher` applied (19 statements — constraints, indexes, `chunk_embedding` vector index 1536 cosine)
+| Check | Result |
+|-------|--------|
+| `npm run lint` | ✅ pass |
+| `npx tsc --noEmit` | ✅ pass |
+| `npm run verify:neo4j` | ✅ pass — 2299 nodes, 2279 rels |
+| `npm run neo4j:test` | ✅ pass — 8/8 integration tests |
+| `npm run neo4j:test-api` | ✅ pass — API layer + health query |
+
+**Aura schema:** `neo4j/schema.cypher` — apply after pull: `npm run neo4j:apply-schema` (adds community constraints/indexes)
 
 ---
 
 ## 2. Project Phase Map
 
 ```
-Phase 0–6b   … prior phases (see §6 Commit Log)
-Phase 7      Chat Acharya       ✅ 4e652bc
-Phase 7b     Notes verify UI    ✅ a50a59b
-Phase 7c     Question Paper RAG ✅ — verify + generate APIs, NCERT ingest, curriculum availability UI
+Phase 0–7c   … prior phases (see §6 Commit Log)
+Phase 8      Home Dashboard + Teacher Community — live Aura dashboard, Reddit-style feed, groups, group chat, post images
 ```
 
 ---
 
 ## 3. Architecture Snapshot
 
+### Home + community
+
+```
+Home tab
+  → use-home-dashboard → GET /api/dashboard
+  → use-community-feed (preview limit 2) → GET /api/community/posts (+ welcome upsert + optional demo seed)
+  → Groups segment (lazy) → GET /api/community/groups
+
+app/community/*
+  → feed, create-post, post/[postId], groups/*, join, group chat
+
+lib/graph/dashboard.ts       — stats + activity aggregation
+lib/graph/community/*        — feed, votes, comments, groups, chat, seed-demo, seed-welcome
+lib/api-route-params.ts      — nested API route param resolution fallback
+lib/community/post-route.ts  — post deep-link paths
+lib/dashboard/streak.ts      — consecutive-day streak in TypeScript
+```
+
 ### Question paper RAG (Phase 7c)
 
-```
-Chat Upload pill → /notes/upload
-  → NotesUploadScreen
-       ├── useQuestionPaperUpload (PDF/DOC/gallery/camera)
-       ├── useCurriculumBooks → GET /api/curriculum/books
-       ├── useQuestionPaperVerify → POST /api/notes/verify
-       └── CurriculumSelectSheet (2 subjects/class, Aura availability)
-
-/notes/generate → QuestionPaperGenerateScreen
-  → useQuestionPaperGenerate → POST /api/notes/generate
-
-Server:
-  lib/rag/extract-text.ts → pdf-parse, mammoth, vision seed
-  lib/rag/embeddings.ts → OpenRouter
-  lib/rag/retrieve.ts → hybrid post-filter retrieval
-  lib/rag/verify-evaluate.ts | generate-evaluate.ts
-  lib/graph/curriculum.ts | notes.ts
-```
-
-### NCERT demo books (local + Aura)
-
-```
-books/demo-books.json          — one book per class (config)
-books/class-N/<subject>/<slug>/ — PDFs on disk
-npm run books:embed-missing    — manifest + ingest only missing
-npm run books:status           — compare disk vs Aura
-```
-
-Demo embedded (11/11): class 2–5 English Marigold, class 6 Science Curiosity, class 7–12 English (one book each).
-
-See [`neo4j/graph-model.md`](../neo4j/graph-model.md), [`books/README.md`](../books/README.md).
-
-### Routes (Expo Router)
-
-| Route | File | Role |
-|-------|------|------|
-| `/notes/upload` | `app/notes/upload.tsx` | Verify question paper |
-| `/notes/generate` | `app/notes/generate.tsx` | Generate question paper |
-| `/profile/teaching-classes` | `app/profile/teaching-classes.tsx` | Classes 2–12 multi-select |
+Unchanged — see prior memory sections.
 
 ---
 
-## 4. File map — Question Paper (Phase 7c)
+## 4. File map — Phase 8
 
-### API (`app/api/`)
-
-| File | Role |
-|------|------|
-| `curriculum/books+api.ts` | List Aura books |
-| `curriculum/availability+api.ts` | Embedded class+subject slots |
-| `notes/verify+api.ts` | Multipart verify pipeline |
-| `notes/generate+api.ts` | Paper generation |
-
-### Lib / RAG
+### API
 
 | File | Role |
 |------|------|
-| `lib/rag/chunk-text.ts` | Text chunking |
-| `lib/rag/embeddings.ts` | OpenRouter embeddings |
-| `lib/rag/extract-text.ts` | PDF/DOCX/image seed |
-| `lib/rag/retrieve.ts` | Hybrid retrieval |
-| `lib/rag/verify-evaluate.ts` | Structured verify LLM |
-| `lib/rag/generate-evaluate.ts` | Structured generate LLM |
-| `lib/graph/curriculum.ts` | Books, chapters, availability |
-| `lib/graph/notes.ts` | Teacher chunks, VerificationReport |
-| `lib/ai-config.ts` | Embedding, vision, RAG_DEBUG env |
+| `app/api/dashboard+api.ts` | Dashboard aggregation |
+| `app/api/community/posts+api.ts` | Feed + create (+ image upload) |
+| `app/api/community/posts/[postId]+api.ts` | Detail + delete |
+| `app/api/community/posts/[postId]/vote+api.ts` | Votes |
+| `app/api/community/posts/[postId]/save+api.ts` | Saves |
+| `app/api/community/posts/[postId]/comments+api.ts` | Comments |
+| `app/api/community/images/[imageId]+api.ts` | Post image serving |
+| `app/api/community/groups+api.ts` | Groups |
+| `app/api/community/groups/join+api.ts` | Join code |
+| `app/api/community/groups/[groupId]+api.ts` | Group detail |
+| `app/api/community/groups/[groupId]/messages+api.ts` | Group chat |
 
-### Scripts
+### UI
 
-| Script | npm command | Role |
-|--------|-------------|------|
-| `scripts/ingest-ncert-books.mjs` | `neo4j:ingest-books` | Batched embed + Aura write |
-| `scripts/embed-missing-books.mjs` | `books:embed-missing` | Safe incremental ingest |
-| `scripts/books-status.mjs` | `books:status` | Demo vs Aura report |
-| `scripts/aura-introspect.mjs` | `neo4j:introspect` | Chunk/index introspection |
-| `scripts/apply-neo4j-schema.mjs` | `neo4j:apply-schema` | Apply `schema.cypher` |
+| Path | Role |
+|------|------|
+| `components/home/home-screen.tsx` | Compact Home (stats in activity card) |
+| `components/home/recent-activity-card.tsx` | Stats chips + activity + quick links |
+| `components/community/*` | Feed, post card/body, images, groups, chat, top bookmark actions |
+| `app/community/*` | Community stack screens |
 
-### Neo4j
+### Hooks / store
 
 | File | Role |
 |------|------|
-| `neo4j/schema.cypher` | Constraints, lookup indexes, `chunk_embedding` vector index (1536) |
-| `neo4j/graph-model.md` | Labels, relationships, example Cypher |
+| `hooks/use-home-dashboard.ts` | Dashboard on focus |
+| `hooks/use-community-feed.ts` | Feed + optimistic vote/save/delete |
+| `hooks/use-community-groups.ts` | Groups CRUD/join |
+| `hooks/use-group-chat.ts` | 5s polling chat |
+| `hooks/use-community-post-images.ts` | Image picker + upload |
+| `store/community-store.ts` | Draft post state |
 
 ---
 
 ## 5. Current State
 
-> **Status:** Phase 7c Question Paper Graph RAG — verify + generate live; 11 demo books embedded; schema applied to Aura.
-
-### Phase 7c decisions
+> **Status:** Phase 8 shipped on `dev`. No in-progress feature branch work.
 
 | Topic | Implementation |
 |-------|----------------|
-| RAG style | Structured retrieve → single LLM → JSON (not agentic loops) |
-| Embeddings | `openai/text-embedding-3-small` via OpenRouter; Aura vector index 1536 cosine |
-| Demo books | One book per class in `books/demo-books.json`; class 6 = Science Curiosity |
-| Curriculum UI | 2 subjects per class; availability from `GET /api/curriculum/availability` |
-| Ingest | Skip existing books/chapters; batched embed + UNWIND writes |
-| Images | Vision seed for retrieval; multimodal LLM for final verify |
-
-### Env (server `.env`)
-
-`OPENROUTER_EMBEDDING_MODEL`, `OPENROUTER_VISION_MODEL`, `INGEST_*` tuning — see `.env.example`.
+| Home data | Aura live — no static mock feed |
+| Streak | Distinct session dates from Cypher → `computeTeachingStreak` in TS |
+| Vote score | Single write transaction + delta table; Teacher MERGE before vote/save |
+| API params | `lib/api-route-params.ts` — URL fallback for nested Expo API routes |
+| Welcome post | `ensureAcharyaWelcomePost()` on every feed load; ASCII guide; footer-only delete |
+| Post actions | Bookmark top-right; delete footer only (card + detail) |
+| Home performance | Dashboard + feed preview on load; groups lazy on segment tap |
+| Group chat v1 | 5s poll while focused; no unread counts |
+| Join codes | Uppercase on write; case-insensitive lookup |
+| Demo seed | `COMMUNITY_DEMO_SEED=true` — LLM posts on empty feed; cleanup: `MATCH (p:CommunityPost {demoSeed:true}) WHERE NOT coalesce(p.demoWelcome,false) DETACH DELETE p` |
 
 ---
 
 ## 6. Commit Log (oldest → newest)
 
-### `a50a59b` — feat: Notes verification upload UI with curriculum sheet and class settings
+### `0a3af7e` — feat: Question Paper Graph RAG with NCERT ingest and curriculum availability
 
-- Neo-Brutal `/notes/upload`, curriculum sheet, teaching classes filter
+- (prior entry unchanged)
 
-### `4e652bc` — feat: Chat Acharya with Aura graph, voice input, and Neo-Brutal coach UI
+### `474cfb6` — feat: Home dashboard and teacher community with post images and welcome guide
+
+- Live Aura dashboard on Home (`GET /api/dashboard`); stats merged into Recent Activity card
+- Neo4j `neo4j.int()` fix for dashboard LIMIT params
+- Full teacher community: feed, create post, post detail, comments, votes, saves, groups, join-by-code, group chat
+- Post image upload (gallery/camera/files) + `CommunityPostImage` graph nodes + image API route
+- Acharya welcome post (ASCII quick-start guide); always upserted; pinned; deletable
+- Post UX polish: tappable card body, bookmark top-only, delete footer-only, monospace ASCII body rendering
+- Vote/save Teacher MERGE fix; nested API route param resolution
+- Schema + graph-model updates for community labels/constraints
+- Validation: lint, tsc, verify:neo4j, neo4j:test, neo4j:test-api — all pass
 
 ---
 
 ## 7. Next Work (recommended order)
 
-1. **End-to-end manual test** — verify + generate on device with Clerk auth + API server
-2. **Home `NotesGapsCard`** → `/notes/upload`
-3. **Add class 6 English + more subjects** when PDFs ready → `npm run books:embed-missing`
+1. **Merge Phase 8 PR** — `dev` → `main`
+2. **`npm run neo4j:apply-schema`** on Aura if community constraints not yet applied
+3. **Manual test** — two teacher accounts: post with images, vote, save, delete welcome post, group join, group chat
 4. **Chat voice agent** — Voice pill → Sarvam conversational agent
 
 ---
@@ -207,7 +211,8 @@ When you finish a meaningful commit:
 
 | File | Screen |
 |------|--------|
-| `prompt_material/09-notes-verify.png` | Notes upload + gaps — **implemented + live verify** |
+| `prompt_material/08-teacher-community.png` | Community feed on Home — **implemented** |
+| `prompt_material/09-notes-verify.png` | Notes upload — implemented |
 | `prompt_material/06-teaching-calendar.png` | Calendar — implemented |
 | `prompt_material/05-core-recorder.png` | Recorder — implemented |
 
@@ -220,19 +225,20 @@ When you finish a meaningful commit:
 ```bash
 npm run lint && npx tsc --noEmit
 npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
-npm run neo4j:apply-schema    # idempotent — safe to re-run
-npm run books:status
-npm run books:embed-missing # after adding PDFs to books/
+npm run neo4j:apply-schema    # after Phase 8 — community constraints
 npm run start:go -- --clear
 ```
 
-### Question paper test checklist
+### Phase 8 test checklist
 
-1. **Profile → Select classes** → include Class 6–12 (or 2–12 for full demo)
-2. **Chat → Upload** → pick class → expand → **English** or **Science** shows green Available
-3. Select subject → book chips load from Aura → upload PDF → **Verify**
-4. **Generate paper** link → `/notes/generate` → paper type + difficulty → **Generate**
+1. **Home** — no dashboard error; stats inside Recent Activity; Community Feed visible without scroll
+2. **Welcome post** — ASCII guide pinned; bookmark top; delete footer only; delete once → does not return
+3. **Demo seed** — set `COMMUNITY_DEMO_SEED=true`; open Home → realistic teacher posts appear
+4. **Community** — create post with images; upvote/downvote/toggle save; share link copies `acharyaapp://...`
+5. **Comments** — open post detail; add comment; `commentCount` increments
+6. **Groups** — create group; copy join code; second teacher joins with lowercase code
+7. **Group chat** — send message; appears on poll refresh for other member
 
 ---
 
-*Last updated: 2026-06-07 — Phase 7c Question Paper Graph RAG (verify, generate, NCERT ingest, curriculum availability).*
+*Last updated: 2026-06-08 — Phase 8 committed on `dev`; all validation checks pass.*
