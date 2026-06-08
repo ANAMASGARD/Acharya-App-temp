@@ -74,6 +74,7 @@ type SessionDetailRow = Readonly<{
   session: Record<string, unknown>;
   report: Record<string, unknown> | null;
   transcript: Record<string, unknown> | null;
+  classNotes: Record<string, unknown> | null;
 }>;
 
 function parseReportJson(value: unknown): TeachingReport | null {
@@ -101,7 +102,8 @@ export async function getSessionDetail(
     MATCH (t:Teacher { clerkId: $clerkId })-[:TAUGHT]->(s:Session { sessionId: $sessionId })
     OPTIONAL MATCH (s)-[:HAS_REPORT]->(rp:Report)
     OPTIONAL MATCH (s)-[:HAS_TRANSCRIPT]->(tr:Transcript)
-    RETURN s { .* } AS session, rp { .* } AS report, tr { .* } AS transcript
+    OPTIONAL MATCH (s)-[:HAS_CLASS_NOTES]->(cn:ClassNotes)
+    RETURN s { .* } AS session, rp { .* } AS report, tr { .* } AS transcript, cn { .* } AS classNotes
     `,
     { clerkId, sessionId },
   );
@@ -122,9 +124,16 @@ export async function getSessionDetail(
   const transcriptPreview =
     transcriptText.length > 0 ? transcriptText.slice(0, 280) : null;
 
+  const classNotesNode = row.classNotes
+    ? (serializeNeo4jValue(row.classNotes) as { text?: string })
+    : null;
+  const classNotesText = classNotesNode?.text?.trim() ?? "";
+  const classNotes = classNotesText.length > 0 ? classNotesText : null;
+
   return {
     session,
     report: reportNode ? parseReportJson(reportNode.json) : null,
     transcriptPreview,
+    classNotes,
   };
 }

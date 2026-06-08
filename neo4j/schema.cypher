@@ -16,6 +16,9 @@ FOR (t:Transcript) REQUIRE t.transcriptId IS UNIQUE;
 CREATE CONSTRAINT report_id IF NOT EXISTS
 FOR (r:Report) REQUIRE r.reportId IS UNIQUE;
 
+CREATE CONSTRAINT class_notes_id IF NOT EXISTS
+FOR (cn:ClassNotes) REQUIRE cn.notesId IS UNIQUE;
+
 CREATE CONSTRAINT curriculum_book_id IF NOT EXISTS
 FOR (b:CurriculumBook) REQUIRE b.bookId IS UNIQUE;
 

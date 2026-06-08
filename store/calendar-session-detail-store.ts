@@ -101,6 +101,7 @@ export const useCalendarSessionDetailStore = create<CalendarSessionDetailState>(
                   session: response.session,
                   report: response.report,
                   transcriptPreview: response.transcriptPreview,
+                  classNotes: response.classNotes ?? null,
                 },
                 status: "success",
                 error: null,

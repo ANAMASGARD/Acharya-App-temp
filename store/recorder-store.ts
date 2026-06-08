@@ -28,6 +28,7 @@ type RecorderStoreState = Readonly<{
   errorMessage: string | null;
   analysisError: string | null;
   report: TeachingReport | null;
+  classNotes: string | null;
   setMetadata: (fields: {
     topic?: string;
     subject?: string;
@@ -48,6 +49,7 @@ type RecorderStoreState = Readonly<{
   setError: (message: string | null) => void;
   setAnalysisError: (message: string | null) => void;
   setReport: (report: TeachingReport | null) => void;
+  setClassNotes: (classNotes: string | null) => void;
   setAllowPartialSend: (value: boolean) => void;
   reset: () => void;
   recomputeDerived: () => void;
@@ -69,6 +71,7 @@ const initialState = {
   errorMessage: null,
   analysisError: null,
   report: null,
+  classNotes: null,
 };
 
 function recompute(chunks: readonly RecorderChunk[]): Pick<
@@ -99,6 +102,7 @@ export const useRecorderStore = create<RecorderStoreState>((set, get) => ({
       errorMessage: null,
       analysisError: null,
       report: null,
+      classNotes: null,
       elapsedSeconds: 0,
     }),
   setStatus: (status) => set({ status }),
@@ -180,6 +184,7 @@ export const useRecorderStore = create<RecorderStoreState>((set, get) => ({
   setError: (message) => set({ errorMessage: message }),
   setAnalysisError: (message) => set({ analysisError: message }),
   setReport: (report) => set({ report, status: report ? "completed" : get().status }),
+  setClassNotes: (classNotes) => set({ classNotes }),
   setAllowPartialSend: (value) => set({ allowPartialSend: value }),
   reset: () => set({ ...initialState }),
   recomputeDerived: () => {

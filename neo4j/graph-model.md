@@ -12,6 +12,7 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `Session` | `sessionId` | One recorded class |
 | `Transcript` | `transcriptId` | Merged STT output for a session |
 | `Report` | `reportId` | Gemini teaching analysis for a session |
+| `ClassNotes` | `notesId` | AI-generated student-readable study notes from session transcript |
 | `CurriculumBook` | `bookId` | NCERT / curriculum source book |
 | `Chapter` | `chapterId` | Chapter within a book |
 | `Chunk` | `chunkId` | Text chunk (+ `embedding` for vector search) |
@@ -34,6 +35,7 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `(Teacher)-[:TAUGHT]->(Session)` | Calendar, dashboard, session history |
 | `(Session)-[:HAS_TRANSCRIPT]->(Transcript)` | Report pipeline, replay |
 | `(Session)-[:HAS_REPORT]->(Report)` | Scores, feedback UI |
+| `(Session)-[:HAS_CLASS_NOTES]->(ClassNotes)` | Student study notes in calendar / recorder detail |
 | `(Session)-[:HAS_CHUNK]->(AudioChunk)` | Per-chunk STT during recording |
 | `(Chapter)-[:PART_OF]->(CurriculumBook)` | Curriculum navigation |
 | `(Chunk)-[:IN_CHAPTER]->(Chapter)` | Scoped RAG by class/subject |

@@ -23,6 +23,11 @@ export type ReportNode = Readonly<{
   json: TeachingReport;
 }>;
 
+export type ClassNotesNode = Readonly<{
+  notesId: string;
+  text: string;
+}>;
+
 type ChunkRow = Readonly<{ chunk: Record<string, unknown> }>;
 
 export async function upsertAudioChunk(
@@ -72,16 +77,18 @@ export async function updateSessionDuration(
   );
 }
 
-export async function saveTranscriptAndReport(
+export async function saveTranscriptReportAndNotes(
   clerkId: string,
   sessionId: string,
   transcriptText: string,
   isComplete: boolean,
   chunkCount: number,
   report: TeachingReport,
-): Promise<{ transcriptId: string; reportId: string }> {
+  classNotes: string,
+): Promise<{ transcriptId: string; reportId: string; notesId: string }> {
   const transcriptId = `${sessionId}-transcript`;
   const reportId = `${sessionId}-report`;
+  const notesId = `${sessionId}-notes`;
 
   await runWriteQuery(
     `
@@ -95,7 +102,11 @@ export async function saveTranscriptAndReport(
     MERGE (s)-[:HAS_REPORT]->(rp:Report { reportId: $reportId })
     ON CREATE SET rp.createdAt = datetime()
     SET rp.json = $reportJson,
-        rp.updatedAt = datetime(),
+        rp.updatedAt = datetime()
+    MERGE (s)-[:HAS_CLASS_NOTES]->(cn:ClassNotes { notesId: $notesId })
+    ON CREATE SET cn.createdAt = datetime()
+    SET cn.text = $classNotes,
+        cn.updatedAt = datetime(),
         s.score = $overallScore,
         s.updatedAt = datetime()
     `,
@@ -104,13 +115,15 @@ export async function saveTranscriptAndReport(
       sessionId,
       transcriptId,
       reportId,
+      notesId,
       transcriptText,
       isComplete,
       chunkCount,
       reportJson: JSON.stringify(report),
+      classNotes,
       overallScore: report.overallScore,
     },
   );
 
-  return { transcriptId, reportId };
+  return { transcriptId, reportId, notesId };
 }

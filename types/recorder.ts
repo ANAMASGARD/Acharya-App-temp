@@ -68,7 +68,7 @@ export type SttChunkResponse = Readonly<{
 }>;
 
 export type AnalyzeResponse =
-  | Readonly<{ report: TeachingReport }>
+  | Readonly<{ report: TeachingReport; classNotes: string }>
   | Readonly<{ error: { code: string; message: string } }>;
 
 export type OpenRouterErrorCode =

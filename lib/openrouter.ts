@@ -3,6 +3,7 @@ import {
   getOpenRouterConfig,
   OpenRouterConfigError,
 } from "@/lib/ai-config";
+import { buildClassNotesPrompt } from "@/lib/prompts/class-notes";
 import { buildTeachingAnalysisPrompt } from "@/lib/prompts/teaching-analysis";
 import {
   TEACHING_REPORT_JSON_SCHEMA,
@@ -227,6 +228,85 @@ export async function analyzeTeachingTranscript(input: {
 
     throw error;
   }
+}
+
+export async function generateClassNotes(input: {
+  transcript: string;
+  subject: string;
+  topic: string;
+  classLevel: string;
+}): Promise<string> {
+  let config: ReturnType<typeof getOpenRouterConfig>;
+
+  try {
+    config = getOpenRouterConfig();
+  } catch (error) {
+    if (error instanceof OpenRouterConfigError) {
+      throw Object.assign(new Error(error.message), {
+        mapped: mapConfigError(error),
+      });
+    }
+
+    throw error;
+  }
+
+  const { apiKey, model } = config;
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://acharya.app",
+      "X-Title": "Acharya Class Notes",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "user",
+          content: buildClassNotesPrompt(
+            input.transcript,
+            input.subject,
+            input.topic,
+            input.classLevel,
+          ),
+        },
+      ],
+    }),
+  });
+
+  const payload: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const mapped = mapOpenRouterError(response.status, payload);
+    throw Object.assign(new Error(mapped.userMessage), {
+      mapped,
+    });
+  }
+
+  const content =
+    typeof payload === "object" &&
+    payload !== null &&
+    "choices" in payload &&
+    Array.isArray((payload as { choices: unknown[] }).choices)
+      ? ((payload as { choices: { message?: { content?: string } }[] }).choices[0]
+          ?.message?.content ?? "")
+      : "";
+
+  const notes = content.trim();
+
+  if (!notes) {
+    throw Object.assign(new Error("Notes generator returned an empty response."), {
+      mapped: {
+        code: "schema_invalid" as const,
+        httpStatus: 502,
+        userMessage: "Notes could not be generated. Tap Retry.",
+      },
+    });
+  }
+
+  return notes;
 }
 
 export type OpenRouterChatMessage = Readonly<{

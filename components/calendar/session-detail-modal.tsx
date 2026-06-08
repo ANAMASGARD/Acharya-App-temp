@@ -1,7 +1,9 @@
+import { ClassNotesSection } from "@/components/calendar/class-notes-section";
+import { ClassReflectionSections } from "@/components/calendar/class-reflection-sections";
 import {
-  ClassReflectionSections,
-  getScoreBadgeColors,
-} from "@/components/calendar/class-reflection-sections";
+  SessionDetailViewToggle,
+  type SessionDetailView,
+} from "@/components/calendar/session-detail-view-toggle";
 import { NeoButton } from "@/components/ui/neo-button";
 import {
   formatDuration,
@@ -19,15 +21,39 @@ import { borderWidths, radii, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import type { SessionDetail } from "@/types/calendar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+
+const SHEET_SLIDE_DISTANCE = Math.min(Dimensions.get("window").height * 0.92, 720);
+const BLUR_INTENSITY = Platform.OS === "android" ? 42 : 36;
+
+const SPRING_CONFIG = {
+  damping: 26,
+  mass: 0.9,
+  stiffness: 300,
+};
+
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
 type Props = Readonly<{
   visible: boolean;
@@ -43,29 +69,105 @@ export function SessionDetailModal({
   isLoading,
   error,
   onClose,
-}: Props): React.ReactElement {
+}: Props): React.ReactElement | null {
+  const [activeView, setActiveView] = useState<SessionDetailView>("reflection");
+  const [mounted, setMounted] = useState(visible);
   const session = detail?.session;
-  const score =
-    typeof session?.score === "number"
-      ? session.score
-      : detail?.report?.overallScore;
+
+  const translateY = useSharedValue(SHEET_SLIDE_DISTANCE);
+  const backdropProgress = useSharedValue(0);
+
+  const finishClose = (): void => {
+    setMounted(false);
+  };
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      backdropProgress.value = withTiming(1, {
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+      });
+      translateY.value = withSpring(0, SPRING_CONFIG);
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    backdropProgress.value = withTiming(0, {
+      duration: 220,
+      easing: Easing.in(Easing.cubic),
+    });
+    translateY.value = withTiming(
+      SHEET_SLIDE_DISTANCE,
+      {
+        duration: 280,
+        easing: Easing.in(Easing.cubic),
+      },
+      (finished) => {
+        if (finished) {
+          runOnJS(finishClose)();
+        }
+      },
+    );
+  }, [backdropProgress, mounted, translateY, visible]);
+
+  useEffect(() => {
+    if (visible) {
+      setActiveView("reflection");
+    }
+  }, [visible, session?.sessionId]);
+
+  const sheetAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: backdropProgress.value,
+  }));
+
+  const blurAnimatedProps = useAnimatedProps(() => ({
+    intensity: backdropProgress.value * BLUR_INTENSITY,
+  }));
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
+      statusBarTranslucent
       transparent
-      visible={visible}
+      visible={mounted}
     >
       <View style={styles.overlay}>
-        <Pressable
-          accessibilityLabel="Close session details"
-          accessibilityRole="button"
-          onPress={onClose}
-          style={styles.backdrop}
-        />
+        <Animated.View
+          pointerEvents="box-none"
+          style={[styles.backdropWrap, backdropAnimatedStyle]}
+        >
+          <AnimatedBlurView
+            animatedProps={blurAnimatedProps}
+            experimentalBlurMethod={
+              Platform.OS === "android" ? "dimezisBlurView" : undefined
+            }
+            intensity={BLUR_INTENSITY}
+            style={StyleSheet.absoluteFillObject}
+            tint="dark"
+          />
+          <View style={styles.backdropTint} />
+          <Pressable
+            accessibilityLabel="Close session details"
+            accessibilityRole="button"
+            onPress={onClose}
+            style={styles.backdropPressable}
+          />
+        </Animated.View>
 
-        <View style={styles.sheet}>
+        <Animated.View style={[styles.sheet, sheetAnimatedStyle]}>
           {isLoading ? (
             <View style={styles.centered}>
               <ActivityIndicator color={colors.foreground} size="large" />
@@ -96,7 +198,7 @@ export function SessionDetailModal({
                   </Pressable>
                 </View>
 
-                <View style={styles.badgeRow}>
+                <View style={styles.chipRow}>
                   <View
                     style={[
                       styles.tagBadge,
@@ -142,16 +244,12 @@ export function SessionDetailModal({
                       {formatDuration(session.durationSeconds)}
                     </Text>
                   </View>
-                  {typeof score === "number" ? (
-                    <View
-                      style={[
-                        styles.scoreBadge,
-                        getScoreBadgeColors(score),
-                      ]}
-                    >
-                      <Text style={styles.scoreText}>{score}</Text>
-                    </View>
-                  ) : null}
+
+                  <SessionDetailViewToggle
+                    inline
+                    onChange={setActiveView}
+                    value={activeView}
+                  />
                 </View>
               </View>
 
@@ -163,26 +261,34 @@ export function SessionDetailModal({
                   {formatSessionDate(session.recordedAt)}
                 </Text>
 
-                {detail.transcriptPreview ? (
-                  <View style={styles.transcriptBox}>
-                    <Text style={styles.transcriptTitle}>Transcript Preview</Text>
-                    <Text style={styles.transcriptBody}>
-                      {detail.transcriptPreview}
-                      {detail.transcriptPreview.length >= 280 ? "…" : ""}
-                    </Text>
-                  </View>
-                ) : null}
+                {activeView === "reflection" ? (
+                  <>
+                    {detail.transcriptPreview ? (
+                      <View style={styles.transcriptBox}>
+                        <Text style={styles.transcriptTitle}>
+                          Transcript Preview
+                        </Text>
+                        <Text style={styles.transcriptBody}>
+                          {detail.transcriptPreview}
+                          {detail.transcriptPreview.length >= 280 ? "…" : ""}
+                        </Text>
+                      </View>
+                    ) : null}
 
-                {detail.report ? (
-                  <ClassReflectionSections report={detail.report} />
+                    {detail.report ? (
+                      <ClassReflectionSections report={detail.report} />
+                    ) : (
+                      <View style={styles.emptyReport}>
+                        <Text style={styles.emptyReportTitle}>Report</Text>
+                        <Text style={styles.emptyReportBody}>
+                          No teaching report yet. Finish recording and analysis
+                          to see feedback here.
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 ) : (
-                  <View style={styles.emptyReport}>
-                    <Text style={styles.emptyReportTitle}>Report</Text>
-                    <Text style={styles.emptyReportBody}>
-                      No teaching report yet. Finish recording and analysis to
-                      see feedback here.
-                    </Text>
-                  </View>
+                  <ClassNotesSection notes={detail.classNotes} />
                 )}
               </ScrollView>
 
@@ -191,17 +297,24 @@ export function SessionDetailModal({
               </View>
             </>
           ) : null}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
+  backdropPressable: {
+    ...StyleSheet.absoluteFillObject,
   },
-  badgeRow: {
+  backdropTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(26, 26, 26, 0.22)",
+  },
+  backdropWrap: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  chipRow: {
     alignItems: "center",
     flexDirection: "row",
     flexWrap: "wrap",
@@ -285,23 +398,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   overlay: {
-    backgroundColor: "rgba(26, 26, 26, 0.45)",
     flex: 1,
     justifyContent: "flex-end",
-  },
-  scoreBadge: {
-    alignItems: "center",
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: borderWidths.thin,
-    height: 40,
-    justifyContent: "center",
-    width: 40,
-  },
-  scoreText: {
-    color: colors.foreground,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 14,
   },
   scrollContent: {
     paddingBottom: spacing.lg,

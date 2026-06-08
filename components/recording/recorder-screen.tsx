@@ -26,6 +26,7 @@ export function RecorderScreen(): React.ReactElement {
     statusMessage,
     mergedTranscript,
     report,
+    classNotes,
     analysisError,
     allowPartialSend,
     setTopic,
@@ -92,7 +93,7 @@ export function RecorderScreen(): React.ReactElement {
 
         {report ? (
           <View style={styles.reportGap}>
-            <RecorderReportPanel report={report} />
+            <RecorderReportPanel classNotes={classNotes} report={report} />
           </View>
         ) : null}
       </ScrollView>

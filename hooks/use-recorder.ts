@@ -45,6 +45,7 @@ type UseRecorderResult = Readonly<{
   statusMessage: string;
   mergedTranscript: string;
   report: TeachingReport | null;
+  classNotes: string | null;
   analysisError: string | null;
   allowPartialSend: boolean;
   setTopic: (value: string) => void;
@@ -398,6 +399,7 @@ export function useRecorder(): UseRecorderResult {
     }
 
     store.setReport(response.report);
+    store.setClassNotes(response.classNotes);
     await clearPersistedQueue();
   }, [getAuthToken, store]);
 
@@ -425,6 +427,7 @@ export function useRecorder(): UseRecorderResult {
     statusMessage: getStatusMessage(snapshot),
     mergedTranscript: snapshot.mergedTranscript,
     report: snapshot.report,
+    classNotes: snapshot.classNotes,
     analysisError: snapshot.analysisError,
     allowPartialSend: snapshot.allowPartialSend,
     setTopic: (value) => store.setMetadata({ topic: value }),

@@ -2,8 +2,9 @@ import { requireAuth } from "@/lib/api-auth";
 import {
   getOpenRouterMappedError,
   analyzeTeachingTranscript,
+  generateClassNotes,
 } from "@/lib/openrouter";
-import { saveTranscriptAndReport } from "@/lib/graph/recorder";
+import { saveTranscriptReportAndNotes } from "@/lib/graph/recorder";
 
 const MIN_TRANSCRIPT_LENGTH = 50;
 
@@ -61,23 +62,29 @@ export async function POST(request: Request): Promise<Response> {
         ? Math.floor(body.chunkCount)
         : 1;
 
-    const report = await analyzeTeachingTranscript({
+    const analysisInput = {
       transcript,
       subject: body.subject ?? "",
       topic: body.topic ?? "",
       classLevel: body.classLevel ?? "",
-    });
+    };
 
-    await saveTranscriptAndReport(
+    const [report, classNotes] = await Promise.all([
+      analyzeTeachingTranscript(analysisInput),
+      generateClassNotes(analysisInput),
+    ]);
+
+    await saveTranscriptReportAndNotes(
       userId,
       body.sessionId,
       transcript,
       body.isComplete ?? true,
       chunkCount,
       report,
+      classNotes,
     );
 
-    return Response.json({ report });
+    return Response.json({ report, classNotes });
   } catch (error) {
     const mapped = getOpenRouterMappedError(error);
 

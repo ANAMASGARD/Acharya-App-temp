@@ -7,4 +7,5 @@ export type SessionDetail = Readonly<{
   session: SessionNode;
   report: TeachingReport | null;
   transcriptPreview: string | null;
+  classNotes: string | null;
 }>;
