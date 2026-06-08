@@ -3,6 +3,7 @@ import { lottieAnimations } from "@/constants/lottie";
 import { colors } from "@/theme/colors";
 import { borderWidths, spacing } from "@/theme/tokens";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useEffect, useRef } from "react";
@@ -60,11 +61,16 @@ export const TAB_ITEMS = [
   },
 ] as const;
 
-export function AcharyaTabBar({
-  state,
-  descriptors,
-  navigation,
-}: BottomTabBarProps): React.ReactElement {
+type AcharyaTabBarProps = MaterialTopTabBarProps | BottomTabBarProps;
+
+function isMaterialTopTabBar(
+  props: AcharyaTabBarProps,
+): props is MaterialTopTabBarProps {
+  return "jumpTo" in props;
+}
+
+export function AcharyaTabBar(props: AcharyaTabBarProps): React.ReactElement {
+  const { state, descriptors } = props;
   const insets = useSafeAreaInsets();
   const indicatorX = useSharedValue(0);
   const barWidthRef = useRef(0);
@@ -135,19 +141,41 @@ export function AcharyaTabBar({
           const { options } = descriptors[route.key];
 
           const onPress = (): void => {
-            const event = navigation.emit({
+            if (isMaterialTopTabBar(props)) {
+              const event = props.navigation.emit({
+                type: "tabPress",
+                target: route.key,
+                canPreventDefault: true,
+              });
+
+              if (!focused && !event.defaultPrevented) {
+                props.jumpTo(route.key);
+              }
+
+              return;
+            }
+
+            const event = props.navigation.emit({
               type: "tabPress",
               target: route.key,
               canPreventDefault: true,
             });
 
             if (!focused && !event.defaultPrevented) {
-              navigation.navigate(route.name, route.params);
+              props.navigation.navigate(route.name, route.params);
             }
           };
 
           const onLongPress = (): void => {
-            navigation.emit({
+            if (isMaterialTopTabBar(props)) {
+              props.navigation.emit({
+                type: "tabLongPress",
+                target: route.key,
+              });
+              return;
+            }
+
+            props.navigation.emit({
               type: "tabLongPress",
               target: route.key,
             });

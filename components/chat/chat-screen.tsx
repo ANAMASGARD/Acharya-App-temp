@@ -9,51 +9,22 @@ import { colors } from "@/theme/colors";
 import { borderWidths, radii, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import {
-  Keyboard,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-  type KeyboardEvent,
-} from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-
-const COMPOSER_BOTTOM_GAP = spacing.xs;
+  KeyboardStickyView,
+} from "react-native-keyboard-controller";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export function ChatScreen(): React.ReactElement {
-  const insets = useSafeAreaInsets();
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerHeight, setComposerHeight] = useState(96);
-
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const onShow = (event: KeyboardEvent): void => {
-      setKeyboardHeight(event.endCoordinates.height);
-    };
-    const onHide = (): void => {
-      setKeyboardHeight(0);
-    };
-
-    const showListener = Keyboard.addListener(showEvent, onShow);
-    const hideListener = Keyboard.addListener(hideEvent, onHide);
-
-    return () => {
-      showListener.remove();
-      hideListener.remove();
-    };
-  }, []);
 
   const {
     messages,
     draftText,
     isLoadingHistory,
     isStreaming,
+    replyPhase,
     error,
     setDraftText,
     sendMessage,
@@ -90,31 +61,26 @@ export function ChatScreen(): React.ReactElement {
       void (async () => {
         const transcript = await voiceInput.stopRecording();
 
-        if (transcript) {
-          await sendMessage(transcript);
+        if (!transcript) {
+          return;
         }
+
+        const trimmedDraft = draftText.trim();
+        setDraftText(
+          trimmedDraft ? `${trimmedDraft} ${transcript}` : transcript,
+        );
       })();
       return;
     }
 
     void voiceInput.startRecording();
-  }, [sendMessage, voiceInput]);
+  }, [draftText, setDraftText, voiceInput]);
 
   const handleVoiceAgent = useCallback((): void => {
     // Reserved for live voice-agent conversation (Sarvam agent flow).
   }, []);
 
-  const keyboardLift =
-    keyboardHeight > 0
-      ? Platform.OS === "android"
-        ? Math.max(0, keyboardHeight - insets.bottom)
-        : keyboardHeight
-      : 0;
-
-  const composerOffset =
-    keyboardLift > 0 ? keyboardLift + COMPOSER_BOTTOM_GAP : COMPOSER_BOTTOM_GAP;
-
-  const listBottomPadding = composerHeight + composerOffset + spacing.sm;
+  const composerInset = composerHeight + spacing.lg;
 
   return (
     <>
@@ -131,9 +97,14 @@ export function ChatScreen(): React.ReactElement {
           <View style={styles.body}>
             {error || voiceInput.error ? (
               <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{error ?? voiceInput.error}</Text>
+                <Text style={styles.errorText}>
+                  {error ?? voiceInput.error}
+                </Text>
                 {error ? (
-                  <Text onPress={() => void retryLast()} style={styles.retryText}>
+                  <Text
+                    onPress={() => void retryLast()}
+                    style={styles.retryText}
+                  >
                     Retry
                   </Text>
                 ) : null}
@@ -141,30 +112,36 @@ export function ChatScreen(): React.ReactElement {
             ) : null}
 
             <ChatMessageList
-              contentPaddingBottom={listBottomPadding}
+              composerInset={composerInset}
               isLoadingHistory={isLoadingHistory}
               isStreaming={isStreaming}
               messages={messages}
+              replyPhase={replyPhase}
               streamingMessageId={streamingMessageId}
             />
           </View>
 
-          <View
-            onLayout={(event) => {
-              setComposerHeight(event.nativeEvent.layout.height);
-            }}
-            style={[styles.composerDock, { bottom: composerOffset }]}
+          <KeyboardStickyView
+            offset={{ closed: 0, opened: 0 }}
+            style={styles.composerSticky}
           >
-            <ChatComposer
-              disabled={isStreaming}
-              draftText={draftText}
-              onChangeText={setDraftText}
-              onSend={handleSend}
-              onToggleMic={handleToggleMic}
-              onVoiceAgent={handleVoiceAgent}
-              voiceInputStatus={voiceInput.status}
-            />
-          </View>
+            <View
+              onLayout={(event) => {
+                setComposerHeight(event.nativeEvent.layout.height);
+              }}
+              style={styles.composerDock}
+            >
+              <ChatComposer
+                disabled={isStreaming}
+                draftText={draftText}
+                onChangeText={setDraftText}
+                onSend={handleSend}
+                onToggleMic={handleToggleMic}
+                onVoiceAgent={handleVoiceAgent}
+                voiceInputStatus={voiceInput.status}
+              />
+            </View>
+          </KeyboardStickyView>
         </View>
       </SafeAreaView>
 
@@ -174,6 +151,7 @@ export function ChatScreen(): React.ReactElement {
         isLoading={history.isLoading}
         onClose={history.closeDrawer}
         onDeleteConversation={history.deleteConversation}
+        onRenameConversation={history.renameConversation}
         onNewChat={() => {
           void startNewChat();
         }}
@@ -192,8 +170,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   composerDock: {
-    left: 0,
     paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  composerSticky: {
+    backgroundColor: "transparent",
+    bottom: 0,
+    left: 0,
     position: "absolute",
     right: 0,
   },
@@ -213,6 +196,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   flex: {
+    backgroundColor: colors.cream,
     flex: 1,
   },
   retryText: {

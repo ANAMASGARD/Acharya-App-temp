@@ -8,6 +8,8 @@ type StreamChatMessageOptions = Readonly<{
   onDelta: (content: string) => void;
   onDone: (event: Extract<NdjsonStreamEvent, { type: "done" }>) => void;
   onError: (message: string) => void;
+  onStreamOpen?: () => void;
+  onStreamActivity?: () => void;
   signal?: AbortSignal;
 }>;
 
@@ -98,7 +100,10 @@ export async function streamChatMessage(
     return;
   }
 
+  options.onStreamOpen?.();
+
   const reader = response.body?.getReader();
+  let hasStreamActivity = false;
 
   if (reader) {
     const decoder = new TextDecoder();
@@ -113,6 +118,11 @@ export async function streamChatMessage(
 
       if (done) {
         break;
+      }
+
+      if (!hasStreamActivity && value && value.byteLength > 0) {
+        hasStreamActivity = true;
+        options.onStreamActivity?.();
       }
 
       buffer += decoder.decode(value, { stream: true });

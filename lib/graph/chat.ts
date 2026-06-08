@@ -208,14 +208,15 @@ type ConversationSummaryRow = Readonly<{
   conversationId: string;
   createdAt: unknown;
   preview: string | null;
+  displayTitle: string | null;
   messageCount: number | { toNumber: () => number };
 }>;
 
 function toTitle(preview: string): string {
   const line = preview.split("\n")[0]?.trim() ?? preview.trim();
 
-  if (!line || line === "New conversation") {
-    return "Teacher Support Chat";
+  if (!line) {
+    return "Chat";
   }
 
   return line.length > 42 ? `${line.slice(0, 39)}…` : line;
@@ -232,15 +233,18 @@ export async function listConversationsForTeacher(
     MATCH (t:Teacher { clerkId: $clerkId })-[:HAS_CONVERSATION]->(c:ChatConversation)
     OPTIONAL MATCH (c)-[:HAS_MESSAGE]->(m:ChatMessage)
     WITH c, m
-    ORDER BY c.createdAt DESC, m.createdAt ASC
-    WITH c, collect(m) AS messages
+    ORDER BY m.createdAt ASC
+    WITH c, collect(m) AS rawMessages
+    WITH c, [msg IN rawMessages WHERE msg IS NOT NULL] AS messages
+    WHERE size(messages) > 0
+    WITH c, messages,
+         head([msg IN messages WHERE msg.role = 'user' | msg.content]) AS userPreview,
+         head([msg IN messages | msg.content]) AS firstPreview
     RETURN c.conversationId AS conversationId,
            c.createdAt AS createdAt,
+           c.displayTitle AS displayTitle,
            size(messages) AS messageCount,
-           CASE
-             WHEN size(messages) > 0 THEN messages[0].content
-             ELSE null
-           END AS preview
+           coalesce(userPreview, firstPreview, '') AS preview
     ORDER BY c.createdAt DESC
     LIMIT $limit
     `,
@@ -248,7 +252,8 @@ export async function listConversationsForTeacher(
   );
 
   return rows.map((row) => {
-    const preview = row.preview?.trim() || "New conversation";
+    const preview = String(row.preview ?? "").trim();
+    const customTitle = row.displayTitle?.trim() ?? "";
     const messageCount =
       typeof row.messageCount === "number"
         ? row.messageCount
@@ -258,10 +263,41 @@ export async function listConversationsForTeacher(
       conversationId: String(row.conversationId),
       createdAt: String(serializeNeo4jValue(row.createdAt) ?? ""),
       preview,
-      title: toTitle(preview),
+      title: customTitle || toTitle(preview),
       messageCount,
     };
   });
+}
+
+export async function updateConversationTitleForTeacher(
+  clerkId: string,
+  conversationId: string,
+  title: string,
+): Promise<string> {
+  const trimmed = title.trim();
+
+  if (!trimmed) {
+    throw new Error("Title cannot be empty");
+  }
+
+  if (trimmed.length > 80) {
+    throw new Error("Title must be 80 characters or fewer");
+  }
+
+  const [row] = await runWriteQuery<{ conversationId: string }>(
+    `
+    MATCH (t:Teacher { clerkId: $clerkId })-[:HAS_CONVERSATION]->(c:ChatConversation { conversationId: $conversationId })
+    SET c.displayTitle = $title
+    RETURN c.conversationId AS conversationId
+    `,
+    { clerkId, conversationId, title: trimmed },
+  );
+
+  if (!row) {
+    throw new Error("Conversation not found");
+  }
+
+  return trimmed;
 }
 
 export async function deleteConversationForTeacher(

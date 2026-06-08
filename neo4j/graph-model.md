@@ -17,7 +17,7 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `Chunk` | `chunkId` | Text chunk (+ `embedding` for vector search) |
 | `VerificationReport` | `verificationId` | Notes verification output |
 | `AudioChunk` | `chunkId` | Per-chunk STT text during recording |
-| `ChatConversation` | `conversationId` | In-app Chat Acharya thread (`contextSnapshot` set once at create) |
+| `ChatConversation` | `conversationId` | In-app Chat Acharya thread (`contextSnapshot` at create; optional `displayTitle` for user rename) |
 | `ChatMessage` | `messageId` | User or assistant message in a conversation |
 | `CommunityPost` | `postId` | Teacher community feed post (`score`, `commentCount`) |
 | `CommunityPostImage` | `imageId` | Image attachment metadata for a community post |

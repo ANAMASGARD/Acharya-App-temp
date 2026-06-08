@@ -1,12 +1,13 @@
+import { ChatDeleteConfirmDialog } from "@/components/chat/chat-delete-confirm-dialog";
+import { ChatEditTitleDialog } from "@/components/chat/chat-edit-title-dialog";
 import { ChatHistoryCard } from "@/components/chat/chat-history-card";
-import { DEMO_CHAT_HISTORY } from "@/constants/chat-history-demo";
 import { colors } from "@/theme/colors";
 import { borderWidths, radii, shadows, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import type { ChatConversationSummary } from "@/types/chat";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -48,6 +49,7 @@ type Props = Readonly<{
   onClose: () => void;
   onSelectConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string) => Promise<void>;
+  onRenameConversation: (conversationId: string, title: string) => Promise<void>;
   onNewChat: () => void;
 }>;
 
@@ -59,30 +61,28 @@ export function ChatHistoryDrawer({
   onClose,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
   onNewChat,
 }: Props): React.ReactElement | null {
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
-  const [hiddenDemoIds, setHiddenDemoIds] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] =
+    useState<ChatConversationSummary | null>(null);
+  const [pendingEdit, setPendingEdit] = useState<ChatConversationSummary | null>(
+    null,
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
 
   const translateX = useSharedValue(-DRAWER_WIDTH);
   const backdropProgress = useSharedValue(0);
 
-  const displayConversations = useMemo(() => {
-    const live = conversations;
-    const demo = DEMO_CHAT_HISTORY.filter(
-      (item) => !hiddenDemoIds.includes(item.conversationId),
-    );
-
-    if (live.length > 0) {
-      return live;
-    }
-
-    return demo;
-  }, [conversations, hiddenDemoIds]);
-
   const finishClose = (): void => {
     setMounted(false);
+    setPendingDelete(null);
+    setPendingEdit(null);
+    setIsDeleting(false);
+    setIsRenaming(false);
   };
 
   useEffect(() => {
@@ -131,22 +131,67 @@ export function ChatHistoryDrawer({
   }));
 
   const handleSelect = (conversation: ChatConversationSummary): void => {
-    if (conversation.isDemo) {
-      onClose();
-      return;
-    }
-
     onSelectConversation(conversation.conversationId);
     onClose();
   };
 
-  const handleDelete = (conversation: ChatConversationSummary): void => {
-    if (conversation.isDemo) {
-      setHiddenDemoIds((current) => [...current, conversation.conversationId]);
+  const handleDeletePress = (conversation: ChatConversationSummary): void => {
+    setPendingEdit(null);
+    setPendingDelete(conversation);
+  };
+
+  const handleEditPress = (conversation: ChatConversationSummary): void => {
+    setPendingDelete(null);
+    setPendingEdit(conversation);
+  };
+
+  const handleCancelDelete = (): void => {
+    if (isDeleting) {
       return;
     }
 
-    void onDeleteConversation(conversation.conversationId);
+    setPendingDelete(null);
+  };
+
+  const handleConfirmDelete = (): void => {
+    if (!pendingDelete || isDeleting) {
+      return;
+    }
+
+    setIsDeleting(true);
+    void onDeleteConversation(pendingDelete.conversationId)
+      .then(() => {
+        setPendingDelete(null);
+      })
+      .finally(() => {
+        setIsDeleting(false);
+      });
+  };
+
+  const handleCancelEdit = (): void => {
+    if (isRenaming) {
+      return;
+    }
+
+    setPendingEdit(null);
+  };
+
+  const handleSaveEdit = (title: string): void => {
+    if (!pendingEdit || isRenaming) {
+      return;
+    }
+
+    setIsRenaming(true);
+    void onRenameConversation(pendingEdit.conversationId, title)
+      .then(() => {
+        setPendingEdit(null);
+      })
+      .catch(() => {
+        // Error surfaced via hook state
+      })
+      .finally(() => {
+        setIsRenaming(false);
+      });
   };
 
   if (!mounted) {
@@ -240,13 +285,11 @@ export function ChatHistoryDrawer({
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Chat History</Text>
                 <View style={styles.countBadge}>
-                  <Text style={styles.countText}>
-                    {displayConversations.length}
-                  </Text>
+                  <Text style={styles.countText}>{conversations.length}</Text>
                 </View>
               </View>
 
-              {isLoading ? (
+              {isLoading && conversations.length === 0 ? (
                 <ActivityIndicator color={colors.foreground} style={styles.loader} />
               ) : null}
 
@@ -257,12 +300,15 @@ export function ChatHistoryDrawer({
                 showsVerticalScrollIndicator={false}
                 style={styles.list}
               >
-                {displayConversations.map((conversation) => (
+                {conversations.map((conversation) => (
                   <ChatHistoryCard
                     conversation={conversation}
                     key={conversation.conversationId}
                     onDelete={() => {
-                      handleDelete(conversation);
+                      handleDeletePress(conversation);
+                    }}
+                    onEdit={() => {
+                      handleEditPress(conversation);
                     }}
                     onPress={() => {
                       handleSelect(conversation);
@@ -270,15 +316,32 @@ export function ChatHistoryDrawer({
                   />
                 ))}
 
-                {!isLoading && displayConversations.length === 0 ? (
+                {!isLoading && conversations.length === 0 ? (
                   <Text style={styles.emptyText}>
-                    No chats yet. Start a new conversation.
+                    No chats yet. Go to the chat screen and tap + New Chat to
+                    start your first conversation.
                   </Text>
                 ) : null}
               </ScrollView>
             </View>
           </View>
         </Animated.View>
+
+        <ChatDeleteConfirmDialog
+          chatTitle={pendingDelete?.title}
+          isDeleting={isDeleting}
+          visible={pendingDelete !== null}
+          onCancel={handleCancelDelete}
+          onConfirm={handleConfirmDelete}
+        />
+
+        <ChatEditTitleDialog
+          initialTitle={pendingEdit?.title ?? ""}
+          isSaving={isRenaming}
+          visible={pendingEdit !== null}
+          onCancel={handleCancelEdit}
+          onSave={handleSaveEdit}
+        />
       </View>
     </Modal>
   );

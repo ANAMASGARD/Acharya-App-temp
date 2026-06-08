@@ -1,19 +1,32 @@
+import { ChatLoadingIndicator } from "@/components/chat/chat-loading-indicator";
 import { colors } from "@/theme/colors";
 import { borderWidths, radii, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import { StyleSheet, Text, View } from "react-native";
-import type { ChatMessage } from "@/types/chat";
+import type { ChatMessage, ChatReplyPhase } from "@/types/chat";
 
 type Props = Readonly<{
   message: ChatMessage;
   isStreaming?: boolean;
+  replyPhase?: ChatReplyPhase;
 }>;
 
 export function ChatBubble({
   message,
   isStreaming = false,
+  replyPhase = "sent",
 }: Props): React.ReactElement {
   const isUser = message.role === "user";
+  const showStreamingLoader =
+    !isUser && isStreaming && message.content.trim().length === 0;
+
+  if (showStreamingLoader) {
+    return (
+      <View style={[styles.row, styles.rowAssistant, styles.loaderRow]}>
+        <ChatLoadingIndicator layout="inline" phase={replyPhase} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.row, isUser ? styles.rowUser : styles.rowAssistant]}>
@@ -52,6 +65,9 @@ const styles = StyleSheet.create({
   },
   row: {
     marginBottom: spacing.sm,
+  },
+  loaderRow: {
+    overflow: "visible",
   },
   rowAssistant: {
     alignItems: "flex-start",

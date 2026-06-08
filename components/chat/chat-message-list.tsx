@@ -1,16 +1,19 @@
 import { ChatBubble } from "@/components/chat/chat-bubble";
-import { colors } from "@/theme/colors";
+import { ChatLoadingIndicator } from "@/components/chat/chat-loading-indicator";
 import { spacing } from "@/theme/tokens";
-import type { ChatMessage } from "@/types/chat";
+import type { ChatMessage, ChatReplyPhase } from "@/types/chat";
 import { useEffect, useRef } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 type Props = Readonly<{
   messages: ChatMessage[];
   isLoadingHistory: boolean;
   isStreaming: boolean;
   streamingMessageId?: string | null;
-  contentPaddingBottom?: number;
+  /** Space reserved above the floating composer (content padding + keyboard scroll) */
+  composerInset?: number;
+  replyPhase?: ChatReplyPhase;
 }>;
 
 export function ChatMessageList({
@@ -18,27 +21,30 @@ export function ChatMessageList({
   isLoadingHistory,
   isStreaming,
   streamingMessageId,
-  contentPaddingBottom = spacing.md,
+  composerInset = 0,
+  replyPhase = "sent",
 }: Props): React.ReactElement {
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
-  }, [messages, isLoadingHistory, isStreaming]);
+  }, [messages, isLoadingHistory, isStreaming, composerInset]);
 
   if (isLoadingHistory) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={colors.foreground} />
-      </View>
-    );
+    return <ChatLoadingIndicator layout="centered" />;
   }
 
+  const hasMessages = messages.length > 0;
+
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
+      bottomOffset={composerInset}
       contentContainerStyle={[
         styles.content,
-        { paddingBottom: contentPaddingBottom },
+        hasMessages ? styles.contentWithMessages : styles.contentEmpty,
+        hasMessages && composerInset > 0
+          ? { paddingBottom: composerInset }
+          : null,
       ]}
       keyboardShouldPersistTaps="handled"
       ref={scrollRef}
@@ -50,22 +56,22 @@ export function ChatMessageList({
           isStreaming={isStreaming && message.messageId === streamingMessageId}
           key={message.messageId}
           message={message}
+          replyPhase={replyPhase}
         />
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    flexGrow: 1,
-    paddingBottom: spacing.md,
     paddingTop: spacing.sm,
   },
-  loading: {
-    alignItems: "center",
-    flex: 1,
-    justifyContent: "center",
+  contentEmpty: {
+    flexGrow: 1,
+  },
+  contentWithMessages: {
+    flexGrow: 0,
   },
   scroll: {
     flex: 1,

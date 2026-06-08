@@ -1,8 +1,15 @@
 import { AcharyaTabBar } from "@/components/navigation/acharya-tab-bar";
-import { useAuth } from "@clerk/expo";
-import { Redirect, Tabs } from "expo-router";
-import { ActivityIndicator, View } from "react-native";
+import { SwipeableTabs } from "@/components/navigation/swipeable-tabs";
 import { colors } from "@/theme/colors";
+import { useAuth } from "@clerk/expo";
+import { Redirect } from "expo-router";
+import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
+import { ActivityIndicator, Dimensions, View } from "react-native";
+
+const TAB_INITIAL_LAYOUT = {
+  width: Dimensions.get("window").width,
+  height: 0,
+};
 
 export default function TabsLayout(): React.ReactElement | null {
   const { isLoaded, isSignedIn } = useAuth();
@@ -27,18 +34,23 @@ export default function TabsLayout(): React.ReactElement | null {
   }
 
   return (
-    <Tabs
+    <SwipeableTabs
       initialRouteName="recorder"
+      tabBarPosition="bottom"
+      initialLayout={TAB_INITIAL_LAYOUT}
+      keyboardDismissMode="on-drag"
       screenOptions={{
-        headerShown: false,
+        swipeEnabled: true,
+        animationEnabled: true,
+        lazy: false,
       }}
-      tabBar={(props) => <AcharyaTabBar {...props} />}
+      tabBar={(props: MaterialTopTabBarProps) => <AcharyaTabBar {...props} />}
     >
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="calendar" options={{ title: "Calendar" }} />
-      <Tabs.Screen name="recorder" options={{ title: "Recorder" }} />
-      <Tabs.Screen name="chat" options={{ title: "Chat" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
-    </Tabs>
+      <SwipeableTabs.Screen name="index" options={{ title: "Home" }} />
+      <SwipeableTabs.Screen name="calendar" options={{ title: "Calendar" }} />
+      <SwipeableTabs.Screen name="recorder" options={{ title: "Recorder" }} />
+      <SwipeableTabs.Screen name="chat" options={{ title: "Chat" }} />
+      <SwipeableTabs.Screen name="profile" options={{ title: "Profile" }} />
+    </SwipeableTabs>
   );
 }

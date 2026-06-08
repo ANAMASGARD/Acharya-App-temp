@@ -37,10 +37,16 @@ export function ChatComposer({
   const isMicBusy = isRecording || isTranscribing;
   const canSend = draftText.trim().length > 0 && !disabled && !isTranscribing;
 
+  const inputPlaceholder = isRecording
+    ? "Listening… tap mic to stop"
+    : isTranscribing
+      ? "Transcribing speech…"
+      : "Ask anything…";
+
   return (
     <View style={styles.wrap}>
       <TextInput
-        editable={!disabled && !isTranscribing}
+        editable={!disabled && !isTranscribing && !isRecording}
         multiline
         onChangeText={onChangeText}
         onSubmitEditing={() => {
@@ -48,7 +54,7 @@ export function ChatComposer({
             onSend();
           }
         }}
-        placeholder="Ask anything…"
+        placeholder={inputPlaceholder}
         placeholderTextColor={colors.mutedForeground}
         returnKeyType="send"
         style={styles.input}

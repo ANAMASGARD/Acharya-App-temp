@@ -1,3 +1,10 @@
+export type ChatReplyPhase =
+  | "idle"
+  | "sent"
+  | "analyzing"
+  | "preparing"
+  | "almost_ready";
+
 export type ChatRole = "user" | "assistant" | "system";
 
 export type ChatMessage = Readonly<{
@@ -19,7 +26,6 @@ export type ChatConversationSummary = Readonly<{
   preview: string;
   title: string;
   messageCount: number;
-  isDemo?: boolean;
 }>;
 
 export type VoiceInputStatus = "idle" | "recording" | "transcribing";
