@@ -231,7 +231,7 @@ hooks/use-recorder.ts         — clear classNotes on new recording
 - Multilingual language lock, silence endpointing, chat history from voice
 - Docs: `docs/VOICE.md`; scripts: `voice-backend.sh`, `expo-local.sh`, `localvoiceagent.sh`
 
-### *(this commit)* — feat: recorder analysis on Sarvam-30B with robust JSON and richer class notes
+### `76eebb2` — feat: switch recorder analysis to Sarvam-30B with robust JSON and richer notes
 
 - Switch recorder reflection + class notes from OpenRouter/Gemma to native Sarvam-30B (`SARVAM_LLM_MODEL`)
 - Add `sarvamChatCompletion()` with `reasoning_effort: null` and content-only extraction (fixes empty JSON on long English transcripts)
