@@ -166,7 +166,7 @@ store/chat-history-store.ts         — conversation list, fetchConversations
 
 - Class notes pipeline in session detail modal
 
-### `c624748` — feat: glass pill tab bar with dark frosted dock and chat composer alignment
+### `6b6c374` — feat: glass pill tab bar with dark frosted dock and chat composer alignment
 
 - Replaced full-width black dock with floating blurred glass pill (`expo-blur`, dark tint)
 - Extracted `tab-bar-constants.ts` + `tab-bar-glass.ts` for layout/visual tokens
