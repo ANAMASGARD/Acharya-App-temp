@@ -40,6 +40,9 @@ FOR (c:ChatConversation) REQUIRE c.conversationId IS UNIQUE;
 CREATE CONSTRAINT chat_message_id IF NOT EXISTS
 FOR (m:ChatMessage) REQUIRE m.messageId IS UNIQUE;
 
+CREATE CONSTRAINT voice_session_id IF NOT EXISTS
+FOR (vs:VoiceSession) REQUIRE vs.voiceSessionId IS UNIQUE;
+
 CREATE CONSTRAINT community_post_id IF NOT EXISTS
 FOR (p:CommunityPost) REQUIRE p.postId IS UNIQUE;
 

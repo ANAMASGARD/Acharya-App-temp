@@ -204,6 +204,51 @@ export async function getOrCreateConversation(
   return createConversation(clerkId);
 }
 
+/** Ensures a conversation node exists for the given id (used by voice transcript sync). */
+export async function ensureConversationForTeacher(
+  clerkId: string,
+  conversationId: string,
+): Promise<ChatConversation> {
+  const existing = await getConversationForTeacher(clerkId, conversationId);
+
+  if (existing) {
+    return existing;
+  }
+
+  const contextSnapshot = await buildTeacherContextSnapshot(clerkId);
+  const createdAt = new Date().toISOString();
+
+  const [row] = await runWriteQuery<ConversationRow>(
+    `
+    MERGE (t:Teacher { clerkId: $clerkId })
+    ON CREATE SET t.createdAt = datetime()
+    MERGE (c:ChatConversation { conversationId: $conversationId })
+    ON CREATE SET
+      c.createdAt = datetime($createdAt),
+      c.contextSnapshot = $contextSnapshot,
+      c.teacherClerkId = $clerkId
+    MERGE (t)-[:HAS_CONVERSATION]->(c)
+    RETURN c { .* } AS conversation
+    `,
+    { clerkId, conversationId, createdAt, contextSnapshot },
+  );
+
+  if (!row) {
+    throw new Error("Failed to ensure ChatConversation in AuraDB");
+  }
+
+  const conversation = serializeNeo4jValue(row.conversation) as Record<
+    string,
+    unknown
+  >;
+
+  return {
+    conversationId: String(conversation.conversationId),
+    createdAt: String(conversation.createdAt ?? createdAt),
+    contextSnapshot: String(conversation.contextSnapshot ?? contextSnapshot),
+  };
+}
+
 type ConversationSummaryRow = Readonly<{
   conversationId: string;
   createdAt: unknown;

@@ -3,6 +3,7 @@ import { colors } from "@/theme/colors";
 import { borderWidths, radii, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
 import type { VoiceInputStatus } from "@/types/chat";
+import type { VoiceAgentStatus } from "@/types/voice";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
@@ -20,6 +21,8 @@ type Props = Readonly<{
   onToggleMic: () => void;
   onVoiceAgent: () => void;
   voiceInputStatus: VoiceInputStatus;
+  voiceAgentActive?: boolean;
+  voiceAgentStatus?: VoiceAgentStatus;
   disabled?: boolean;
 }>;
 
@@ -30,12 +33,19 @@ export function ChatComposer({
   onToggleMic,
   onVoiceAgent,
   voiceInputStatus,
+  voiceAgentActive = false,
+  voiceAgentStatus = "idle",
   disabled = false,
 }: Props): React.ReactElement {
   const isRecording = voiceInputStatus === "recording";
   const isTranscribing = voiceInputStatus === "transcribing";
   const isMicBusy = isRecording || isTranscribing;
-  const canSend = draftText.trim().length > 0 && !disabled && !isTranscribing;
+  const isVoiceConnecting = voiceAgentStatus === "connecting";
+  const voiceDisabled = voiceAgentActive
+    ? false
+    : disabled || isMicBusy || isVoiceConnecting;
+  const canSend =
+    draftText.trim().length > 0 && !disabled && !isTranscribing && !voiceAgentActive;
 
   const inputPlaceholder = isRecording
     ? "Listening… tap mic to stop"
@@ -46,7 +56,7 @@ export function ChatComposer({
   return (
     <View style={styles.wrap}>
       <TextInput
-        editable={!disabled && !isTranscribing && !isRecording}
+        editable={!disabled && !isTranscribing && !isRecording && !voiceAgentActive}
         multiline
         onChangeText={onChangeText}
         onSubmitEditing={() => {
@@ -63,16 +73,19 @@ export function ChatComposer({
 
       <View style={styles.toolbar}>
         <Pressable
-          accessibilityLabel="Voice agent"
-          disabled={disabled || isMicBusy}
+          accessibilityLabel={voiceAgentActive ? "End voice chat" : "Start voice agent"}
+          disabled={voiceDisabled}
           onPress={onVoiceAgent}
           style={({ pressed }) => [
             styles.voiceButton,
-            pressed && !disabled && !isMicBusy ? styles.pressed : null,
+            voiceAgentActive && styles.voiceButtonActive,
+            pressed && !voiceDisabled ? styles.pressed : null,
           ]}
         >
           <VoiceWaveformIcon color={colors.foreground} height={16} />
-          <Text style={styles.voiceLabel}>Voice</Text>
+          <Text style={styles.voiceLabel}>
+            {voiceAgentActive ? "End" : "Voice"}
+          </Text>
         </Pressable>
 
         <View style={styles.toolbarSpacer} />
@@ -82,7 +95,7 @@ export function ChatComposer({
             accessibilityLabel={
               isRecording ? "Stop dictation" : "Dictate message"
             }
-            disabled={disabled || isTranscribing}
+            disabled={disabled || isTranscribing || voiceAgentActive}
             onPress={onToggleMic}
             style={({ pressed }) => [
               styles.micCircle,
@@ -189,6 +202,9 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
+  },
+  voiceButtonActive: {
+    backgroundColor: colors.coral,
   },
   voiceLabel: {
     color: colors.foreground,

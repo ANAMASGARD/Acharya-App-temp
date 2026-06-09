@@ -1,0 +1,15 @@
+[project]
+name = "acharya-voice-local"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "httpx>=0.28.0",
+  "pydantic-settings>=2.6.0",
+  "sarvamai>=0.1.28,<0.2",
+  "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+acharya-voice-local = "voice_gateway.main:run"

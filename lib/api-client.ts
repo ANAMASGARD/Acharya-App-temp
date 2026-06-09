@@ -15,8 +15,8 @@ export function getApiBaseUrl(): string {
   const hostUri = Constants.expoConfig?.hostUri;
 
   if (hostUri) {
-    const host = hostUri.split(":")[0];
-    return `http://${host}:8081`;
+    // Use Metro's actual host:port (8081, 8082, etc.) — do not hardcode 8081.
+    return `http://${hostUri}`;
   }
 
   return "";

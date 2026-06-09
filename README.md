@@ -41,6 +41,9 @@ Open the app on a device or simulator from the Expo CLI menu.
 | `npm run ios` | Start with iOS |
 | `npm run web` | Start web |
 | `npm run lint` | ESLint (`expo lint`) |
+| `./voice-backend.sh` | Terminal 1 — voice AI backend (Expo Go) |
+| `./expo-local.sh` | Terminal 2 — Expo Go dev server |
+| `npm run sync:voice-prompt` | Sync teaching prompt to Python services |
 
 Typecheck (when needed):
 
@@ -73,6 +76,17 @@ This project uses **NativeWind v5** (preview) with **Tailwind CSS v4**:
 - Neo-Brutal shadows, press states, and some RN-specific components still use `StyleSheet` per `AGENTS.md`
 
 Docs: [NativeWind v5 installation](https://www.nativewind.dev/v5/getting-started/installation)
+
+---
+
+## Chat Acharya voice agent
+
+**One `.env`. Two terminals: `./voice-backend.sh` then `./expo-local.sh`**
+
+Full guide: **[docs/VOICE.md](./docs/VOICE.md)**
+
+- **Expo Go** → `services/voice-local/` (WebSocket on your laptop)
+- **EAS APK** → LiveKit Cloud + `services/voice-livekit/`
 
 ---
 

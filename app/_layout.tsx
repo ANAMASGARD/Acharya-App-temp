@@ -2,6 +2,7 @@ import "react-native-reanimated";
 import "../global.css";
 
 import { usePreferencesHydration } from "@/hooks/use-preferences-hydration";
+import { isExpoGo } from "@/lib/voice/config";
 import { fontAssets } from "@/theme/fonts";
 import { colors } from "@/theme/colors";
 import { ClerkProvider } from "@clerk/expo";
@@ -13,6 +14,13 @@ import { useEffect } from "react";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 SplashScreen.preventAutoHideAsync();
+
+if (!isExpoGo()) {
+  // Native WebRTC globals — required for EAS / dev builds only (not Expo Go).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { registerGlobals } = require("@livekit/react-native") as typeof import("@livekit/react-native");
+  registerGlobals();
+}
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 

@@ -40,6 +40,11 @@ uploads/
 # typescript
 *.tsbuildinfo
 
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
 app-example
 
 # generated native folders

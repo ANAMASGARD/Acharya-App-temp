@@ -2,10 +2,14 @@ import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatHistoryDrawer } from "@/components/chat/chat-history-drawer";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
+import { VoiceSessionBar } from "@/components/chat/voice/voice-session-bar";
 import { getTabBarOverlayHeight } from "@/components/navigation/acharya-tab-bar";
 import { useChat } from "@/hooks/use-chat";
 import { useChatHistory } from "@/hooks/use-chat-history";
+import { useVoiceAgent } from "@/hooks/use-voice-agent";
 import { useVoiceInput } from "@/hooks/use-voice-input";
+import { useChatStore } from "@/store/chat-store";
+import { useAuth } from "@clerk/expo";
 import { colors } from "@/theme/colors";
 import { borderWidths, radii, spacing } from "@/theme/tokens";
 import { fontFamilies } from "@/theme/typography";
@@ -41,6 +45,15 @@ export function ChatScreen(): React.ReactElement {
 
   const history = useChatHistory();
   const voiceInput = useVoiceInput();
+  const { getToken } = useAuth();
+  const conversationId = useChatStore((state) => state.conversationId);
+  const fetchActiveConversation = useChatStore(
+    (state) => state.fetchActiveConversation,
+  );
+
+  const voiceAgent = useVoiceAgent(() => {
+    void fetchActiveConversation(() => getToken(), { force: true });
+  });
 
   const streamingMessageId = useMemo(() => {
     if (!isStreaming) {
@@ -83,8 +96,17 @@ export function ChatScreen(): React.ReactElement {
   }, [draftText, setDraftText, voiceInput]);
 
   const handleVoiceAgent = useCallback((): void => {
-    // Reserved for live voice-agent conversation (Sarvam agent flow).
-  }, []);
+    if (voiceAgent.isActive) {
+      voiceAgent.disconnect();
+      return;
+    }
+
+    if (isStreaming) {
+      return;
+    }
+
+    void voiceAgent.connect(conversationId);
+  }, [conversationId, isStreaming, voiceAgent]);
 
   const composerInset = composerHeight + spacing.lg + tabBarOverlayHeight;
 
@@ -101,10 +123,10 @@ export function ChatScreen(): React.ReactElement {
 
         <View style={styles.flex}>
           <View style={styles.body}>
-            {error || voiceInput.error ? (
+            {error || voiceInput.error || voiceAgent.error ? (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorText}>
-                  {error ?? voiceInput.error}
+                  {error ?? voiceInput.error ?? voiceAgent.error}
                 </Text>
                 {error ? (
                   <Text
@@ -137,13 +159,21 @@ export function ChatScreen(): React.ReactElement {
               }}
               style={styles.composerDock}
             >
+              {voiceAgent.isActive ? (
+                <VoiceSessionBar
+                  phase={voiceAgent.phase}
+                  status={voiceAgent.status}
+                />
+              ) : null}
               <ChatComposer
-                disabled={isStreaming}
+                disabled={isStreaming || voiceAgent.isActive}
                 draftText={draftText}
                 onChangeText={setDraftText}
                 onSend={handleSend}
                 onToggleMic={handleToggleMic}
                 onVoiceAgent={handleVoiceAgent}
+                voiceAgentActive={voiceAgent.isActive}
+                voiceAgentStatus={voiceAgent.status}
                 voiceInputStatus={voiceInput.status}
               />
             </View>
