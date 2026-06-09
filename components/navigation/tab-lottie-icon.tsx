@@ -1,5 +1,4 @@
 import { colors } from "@/theme/colors";
-import { borderWidths } from "@/theme/tokens";
 import LottieView, { type LottieViewProps } from "lottie-react-native";
 import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
@@ -31,7 +30,7 @@ export function TabLottieIcon({
   const animationRef = useRef<LottieView>(null);
   const iconScale = useSharedValue(1);
 
-  const micTint = colors.secondary;
+  const micTint = colors.primaryForeground;
   const profileTint = focused ? colors.primaryForeground : colors.mint;
   const iconColor = recorderStyle ? micTint : profileTint;
 
@@ -115,14 +114,12 @@ const styles = StyleSheet.create({
     height: 32,
   },
   recorderBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
     alignItems: "center",
+    backgroundColor: "rgba(184, 229, 225, 0.35)",
+    borderRadius: 15,
+    height: 30,
     justifyContent: "center",
-    backgroundColor: colors.mint,
-    borderWidth: borderWidths.thin,
-    borderColor: colors.mint,
+    width: 30,
   },
   recorderLottie: {
     width: 28,

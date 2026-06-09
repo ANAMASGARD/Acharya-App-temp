@@ -2,6 +2,7 @@ import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatHistoryDrawer } from "@/components/chat/chat-history-drawer";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
+import { getTabBarOverlayHeight } from "@/components/navigation/acharya-tab-bar";
 import { useChat } from "@/hooks/use-chat";
 import { useChatHistory } from "@/hooks/use-chat-history";
 import { useVoiceInput } from "@/hooks/use-voice-input";
@@ -14,10 +15,15 @@ import { StyleSheet, Text, View } from "react-native";
 import {
   KeyboardStickyView,
 } from "react-native-keyboard-controller";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 export function ChatScreen(): React.ReactElement {
   const [composerHeight, setComposerHeight] = useState(96);
+  const insets = useSafeAreaInsets();
+  const tabBarOverlayHeight = getTabBarOverlayHeight(insets.bottom);
 
   const {
     messages,
@@ -80,7 +86,7 @@ export function ChatScreen(): React.ReactElement {
     // Reserved for live voice-agent conversation (Sarvam agent flow).
   }, []);
 
-  const composerInset = composerHeight + spacing.lg;
+  const composerInset = composerHeight + spacing.lg + tabBarOverlayHeight;
 
   return (
     <>
@@ -123,7 +129,7 @@ export function ChatScreen(): React.ReactElement {
 
           <KeyboardStickyView
             offset={{ closed: 0, opened: 0 }}
-            style={styles.composerSticky}
+            style={[styles.composerSticky, { bottom: tabBarOverlayHeight }]}
           >
             <View
               onLayout={(event) => {
@@ -175,7 +181,6 @@ const styles = StyleSheet.create({
   },
   composerSticky: {
     backgroundColor: "transparent",
-    bottom: 0,
     left: 0,
     position: "absolute",
     right: 0,

@@ -1,6 +1,5 @@
 import { images } from "@/constants/images";
 import { colors } from "@/theme/colors";
-import { borderWidths } from "@/theme/tokens";
 import { Image } from "expo-image";
 import { StyleSheet, View } from "react-native";
 import Animated, {
@@ -46,7 +45,13 @@ export function TabLottieIcon({
       contentFit="contain"
       source={images.recorderMic}
       style={recorderStyle ? styles.recorderIcon : styles.icon}
-      tintColor={recorderStyle ? colors.secondary : colors.mint}
+      tintColor={
+        recorderStyle
+          ? colors.primaryForeground
+          : focused
+            ? colors.primaryForeground
+            : colors.mint
+      }
     />
   );
 
@@ -72,10 +77,8 @@ const styles = StyleSheet.create({
   },
   recorderBadge: {
     alignItems: "center",
-    backgroundColor: colors.mint,
-    borderColor: colors.mint,
+    backgroundColor: "rgba(184, 229, 225, 0.35)",
     borderRadius: 15,
-    borderWidth: borderWidths.thin,
     height: 30,
     justifyContent: "center",
     width: 30,

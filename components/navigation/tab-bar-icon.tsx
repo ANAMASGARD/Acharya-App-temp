@@ -1,4 +1,5 @@
 import { TabLottieIcon } from "@/components/navigation/tab-lottie-icon";
+import { tabBarGlass } from "@/components/navigation/tab-bar-glass";
 import { colors } from "@/theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import type { LottieViewProps } from "lottie-react-native";
@@ -34,7 +35,9 @@ export function TabBarIcon({
   lottieSource,
 }: Props): React.ReactElement {
   const iconScale = useSharedValue(1);
-  const iconColor = focused ? colors.primaryForeground : colors.mint;
+  const iconColor = focused
+    ? colors.primaryForeground
+    : tabBarGlass.inactiveIcon;
 
   useEffect(() => {
     if (variant === "ionicons" && (focused || playSignal > 0)) {

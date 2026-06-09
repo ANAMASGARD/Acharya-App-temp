@@ -1,16 +1,20 @@
 import { TabBarIcon } from "@/components/navigation/tab-bar-icon";
-import { colors } from "@/theme/colors";
+import {
+  TAB_BAR_ICON_ANCHOR_SIZE,
+  TAB_BAR_ICON_TOP,
+  TAB_BAR_PILL_HEIGHT,
+} from "@/components/navigation/tab-bar-constants";
+import { tabBarGlass } from "@/components/navigation/tab-bar-glass";
 import { fontFamilies, typography } from "@/theme/typography";
 import { Ionicons } from "@expo/vector-icons";
 import type { LottieViewProps } from "lottie-react-native";
-import { useEffect, useState } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withSpring,
-  withTiming,
 } from "react-native-reanimated";
 
 type TabIconName = keyof typeof Ionicons.glyphMap;
@@ -42,19 +46,10 @@ export function TabBarItem({
   onLongPress,
 }: Props): React.ReactElement {
   const scale = useSharedValue(1);
-  const labelOpacity = useSharedValue(focused ? 0 : 1);
   const [playSignal, setPlaySignal] = useState(0);
-
-  useEffect(() => {
-    labelOpacity.value = withTiming(focused ? 0 : 1, { duration: 180 });
-  }, [focused, labelOpacity]);
 
   const animatedContainerStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
-  }));
-
-  const animatedLabelStyle = useAnimatedStyle(() => ({
-    opacity: labelOpacity.value,
   }));
 
   const handlePressIn = (): void => {
@@ -85,21 +80,23 @@ export function TabBarItem({
       style={styles.pressable}
     >
       <Animated.View style={[styles.item, animatedContainerStyle]}>
-        <TabBarIcon
-          focused={focused}
-          icon={icon}
-          iconFocused={iconFocused}
-          lottieSource={lottieSource}
-          playSignal={playSignal}
-          variant={iconVariant}
-        />
-        <Animated.Text
+        <View style={styles.iconAnchor}>
+          <TabBarIcon
+            focused={focused}
+            icon={icon}
+            iconFocused={iconFocused}
+            lottieSource={lottieSource}
+            playSignal={playSignal}
+            variant={iconVariant}
+          />
+        </View>
+        <Text
           numberOfLines={1}
           maxFontSizeMultiplier={1.2}
-          style={[styles.label, animatedLabelStyle]}
+          style={[styles.label, focused ? styles.labelFocused : null]}
         >
           {label}
-        </Animated.Text>
+        </Text>
       </Animated.View>
     </Pressable>
   );
@@ -109,20 +106,28 @@ const styles = StyleSheet.create({
   pressable: {
     flex: 1,
   },
-  item: {
-    flex: 1,
+  iconAnchor: {
     alignItems: "center",
+    height: TAB_BAR_ICON_ANCHOR_SIZE,
     justifyContent: "center",
-    paddingTop: 8,
-    paddingBottom: 6,
-    minHeight: 56,
+    width: TAB_BAR_ICON_ANCHOR_SIZE,
+  },
+  item: {
+    alignItems: "center",
+    height: TAB_BAR_PILL_HEIGHT,
+    justifyContent: "flex-start",
+    paddingTop: TAB_BAR_ICON_TOP,
   },
   label: {
-    marginTop: 4,
+    color: tabBarGlass.inactiveLabel,
     fontFamily: fontFamilies.sansMedium,
     fontSize: typography.caption.fontSize,
     lineHeight: typography.caption.lineHeight,
-    color: colors.mint,
+    marginTop: 1,
     textAlign: "center",
+  },
+  labelFocused: {
+    color: tabBarGlass.activeLabel,
+    fontFamily: fontFamilies.sansBold,
   },
 });
