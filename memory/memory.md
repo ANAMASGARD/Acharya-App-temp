@@ -11,9 +11,9 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 13 — Chat Acharya voice agent** ✅ working locally (uncommitted on branch) |
-| **Previous phases** | Phase 12 glass tab bar (`6b6c374`), Phase 11 tab preload (`f12d5fd`), Phase 10 Chat polish (`f0cc500`) |
-| **Branch** | `main` (+ local voice work, not yet committed) |
+| **Phase** | **Phase 14 — Recorder Sarvam-30B analysis** ✅ reflection + class notes on native Sarvam LLM |
+| **Previous phases** | Phase 13 voice agent, Phase 12 glass tab bar (`6b6c374`), Phase 11 tab preload (`f12d5fd`) |
+| **Branch** | `main` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat (text + **voice**), notes, Home + community |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
 
@@ -37,12 +37,24 @@
 
 **Home + Community (Phase 8)** — dashboard + feed preview
 
+**Recorder pipeline (Phase 14) — post-STT analysis**
+
+- **STT:** Sarvam **Saaras v3** with **`languageCode: auto`** per chunk — no fixed language; Sarvam auto-detects among 23 Indian languages + English
+- **LLM (reflection + class notes):** native **Sarvam-30B** via `SARVAM_LLM_MODEL` + `sarvamChatCompletion()` — **not** OpenRouter/Gemma for recorder
+- **Reflection:** `analyzeTeachingTranscript()` → strict JSON coach report → Neo4j `Report` node (teaching-analysis prompt unchanged in spirit; JSON-only system prompt added)
+- **Class notes:** `generateClassNotes()` → student revision notes → Neo4j `ClassNotes` node; prompt adds subject-aware sections, math/numericals, ASCII diagrams
+- **Sarvam LLM fix:** `reasoning_effort: null` + `contentOnly` — default reasoning mode left `content` empty on longer English transcripts; up to 3 retries + flexible JSON key normalization
+- **Analyze API:** reflection first, then notes (sequential); new recordings clear stale `classNotes` in store
+
 **Validation (last run — 2026-06-09):**
 
 | Check | Result |
 |-------|--------|
 | `npm run lint` | ✅ pass |
 | `npx tsc --noEmit` | ✅ pass |
+| `npm run verify:neo4j` | ✅ pass |
+| `npm run neo4j:test` | ✅ pass |
+| `npm run neo4j:test-api` | ✅ pass |
 | Voice (manual, Expo Go) | ✅ hear, understand, multilingual reply, chat history, End clean |
 
 **Env (server `.env` — voice minimum):**
@@ -67,6 +79,7 @@ Phase 10     Chat Acharya — caching, multilingual prompt, dedicated model, com
 Phase 11     Tab-wide async preload — Zustand bootstrap + stale-while-revalidate
 Phase 12     Glass pill tab bar — dark frosted dock, icon alignment, chat clearance
 Phase 13     Chat Acharya voice agent — Sarvam pipeline, Expo Go local gateway, LiveKit for deploy
+Phase 14     Recorder analysis — Sarvam-30B reflection + class notes; Saaras v3 auto STT; JSON/reasoning fixes
 ```
 
 ---
@@ -167,17 +180,33 @@ store/chat-store.ts                     — messages + voice transcript append +
 
 ## 5. Current State
 
-> **Status:** Phase 13 voice agent **working on Expo Go** with Python `voice-local`. LiveKit path ready for EAS/APK deploy but not the daily Expo Go workflow.
+> **Status:** Phase 14 recorder analysis on **Sarvam-30B** (reflection + class notes). Phase 13 voice agent still working on Expo Go with `voice-local`.
 
 | Topic | Implementation |
 |-------|----------------|
+| Recorder STT | Saaras v3, `STT_AUTO_DETECT` (`auto`) — per-chunk language auto-detect |
+| Recorder LLM | Sarvam-30B (`SARVAM_LLM_MODEL`) for teaching report + class notes — OpenRouter only for chat/RAG/vision |
+| Recorder prompts | `lib/prompts/teaching-analysis.ts` (JSON coach), `lib/prompts/class-notes.ts` (rich student notes) |
+| Sarvam chat helper | `lib/sarvam.ts` → `sarvamChatCompletion()` with `reasoning_effort: null`, `contentOnly` |
 | Local voice | `./voice-backend.sh` + `./expo-local.sh` → WebSocket to `:8080` |
 | Deploy voice | LiveKit + `services/voice-livekit/` + `scripts/deploy-voice-livekit.sh` |
 | AI stack | Sarvam Saaras STT, Sarvam-30B LLM, Bulbul TTS — keys server-side only |
 | Turn taking | 1.25s audio slices; **1.5s** end-of-turn silence |
-| Languages | Locked reply language after explicit switch; dynamic LLM system suffix |
+| Languages | Voice: locked reply language; Recorder STT: auto-detect |
 | Chat integration | Real-time transcript bubbles + Neo4j persist on disconnect |
 | Mic | On only when Voice session active; full teardown on End |
+
+### Key files (Phase 14)
+
+```
+lib/ai-config.ts              — SARVAM_LLM_MODEL (default sarvam-30b)
+lib/sarvam.ts                 — sarvamChatCompletion() for recorder LLM
+lib/openrouter.ts             — analyzeTeachingTranscript + generateClassNotes → Sarvam
+lib/prompts/teaching-analysis.ts — JSON-only system prompt + coach user prompt
+lib/prompts/class-notes.ts    — subject-aware notes, math, ASCII diagrams
+app/api/recorder/analyze+api.ts — sequential report then notes
+hooks/use-recorder.ts         — clear classNotes on new recording
+```
 
 ---
 
@@ -201,6 +230,14 @@ store/chat-store.ts                     — messages + voice transcript append +
 - Expo Go transport; session + transcript-batch API routes; Neo4j voice session sync
 - Multilingual language lock, silence endpointing, chat history from voice
 - Docs: `docs/VOICE.md`; scripts: `voice-backend.sh`, `expo-local.sh`, `localvoiceagent.sh`
+
+### *(this commit)* — feat: recorder analysis on Sarvam-30B with robust JSON and richer class notes
+
+- Switch recorder reflection + class notes from OpenRouter/Gemma to native Sarvam-30B (`SARVAM_LLM_MODEL`)
+- Add `sarvamChatCompletion()` with `reasoning_effort: null` and content-only extraction (fixes empty JSON on long English transcripts)
+- JSON-only teaching coach system prompt; flexible report parsing; 3-attempt retry
+- Richer class notes prompt: subject sections, math notation, numericals, ASCII diagrams
+- Analyze API runs report then notes; recorder store clears stale notes on new session
 
 ---
 
@@ -260,4 +297,4 @@ npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
 
 ---
 
-*Last updated: 2026-06-09 — Phase 13 Chat Acharya voice agent working on Expo Go + Python `voice-local`; LiveKit path for EAS/deploy.*
+*Last updated: 2026-06-09 — Phase 14 recorder uses Sarvam-30B for reflection + class notes; Saaras v3 auto STT; lint/tsc/Neo4j verification all pass.*

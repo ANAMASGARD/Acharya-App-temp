@@ -17,6 +17,8 @@ export const AI_ENV = {
   OPENROUTER_VISION_SEED_MODEL: "OPENROUTER_VISION_SEED_MODEL",
   SARVAM_API_KEY: "SARVAM_API_KEY",
   SARVAM_STT_MODEL: "SARVAM_STT_MODEL",
+  /** Recorder teaching analysis + class notes (`lib/sarvam.ts` chat helper) */
+  SARVAM_LLM_MODEL: "SARVAM_LLM_MODEL",
   SARVAM_TTS_MODEL: "SARVAM_TTS_MODEL",
   NOTES_MAX_UPLOAD_BYTES: "NOTES_MAX_UPLOAD_BYTES",
   RAG_DEBUG: "RAG_DEBUG",
@@ -41,6 +43,7 @@ export type OpenRouterVisionConfig = Readonly<{
 export type SarvamConfig = Readonly<{
   apiKey: string;
   sttModel: string;
+  llmModel: string;
   ttsModel: string;
 }>;
 
@@ -70,7 +73,7 @@ function readEnv(name: string): string | undefined {
 }
 
 /**
- * OpenRouter LLM settings for recorder teaching analysis (`lib/openrouter.ts`).
+ * OpenRouter LLM settings for RAG, community seed, and vision fallbacks.
  * Requires OPENROUTER_API_KEY and OPENROUTER_MODEL in server `.env`.
  */
 export function getOpenRouterConfig(): OpenRouterConfig {
@@ -181,6 +184,7 @@ export function isRagDebugEnabled(): boolean {
 export function getSarvamConfig(): SarvamConfig | null {
   const apiKey = readEnv(AI_ENV.SARVAM_API_KEY);
   const sttModel = readEnv(AI_ENV.SARVAM_STT_MODEL);
+  const llmModel = readEnv(AI_ENV.SARVAM_LLM_MODEL) ?? "sarvam-30b";
   const ttsModel = readEnv(AI_ENV.SARVAM_TTS_MODEL) ?? "bulbul:v3";
 
   if (!apiKey) {
@@ -194,7 +198,7 @@ export function getSarvamConfig(): SarvamConfig | null {
     );
   }
 
-  return { apiKey, sttModel, ttsModel };
+  return { apiKey, sttModel, llmModel, ttsModel };
 }
 
 /**

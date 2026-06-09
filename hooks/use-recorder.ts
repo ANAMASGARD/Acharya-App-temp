@@ -292,6 +292,7 @@ export function useRecorder(): UseRecorderResult {
         errorMessage: null,
         analysisError: null,
         report: null,
+        classNotes: null,
       });
 
       const response = await sessionPromise;

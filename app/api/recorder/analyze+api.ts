@@ -69,10 +69,8 @@ export async function POST(request: Request): Promise<Response> {
       classLevel: body.classLevel ?? "",
     };
 
-    const [report, classNotes] = await Promise.all([
-      analyzeTeachingTranscript(analysisInput),
-      generateClassNotes(analysisInput),
-    ]);
+    const report = await analyzeTeachingTranscript(analysisInput);
+    const classNotes = await generateClassNotes(analysisInput);
 
     await saveTranscriptReportAndNotes(
       userId,

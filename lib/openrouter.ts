@@ -1,12 +1,18 @@
 import {
+  AiConfigError,
   getOpenRouterChatboxConfig,
-  getOpenRouterConfig,
   OpenRouterConfigError,
 } from "@/lib/ai-config";
-import { buildClassNotesPrompt } from "@/lib/prompts/class-notes";
-import { buildTeachingAnalysisPrompt } from "@/lib/prompts/teaching-analysis";
 import {
-  TEACHING_REPORT_JSON_SCHEMA,
+  buildClassNotesPrompt,
+  CLASS_NOTES_SYSTEM_PROMPT,
+} from "@/lib/prompts/class-notes";
+import {
+  buildTeachingAnalysisPrompt,
+  TEACHING_ANALYSIS_SYSTEM_PROMPT,
+} from "@/lib/prompts/teaching-analysis";
+import { sarvamChatCompletion } from "@/lib/sarvam";
+import {
   type OpenRouterErrorCode,
   type TeachingReport,
 } from "@/types/recorder";
@@ -81,22 +87,80 @@ export function mapOpenRouterError(
   };
 }
 
-function isTeachingReport(value: unknown): value is TeachingReport {
+function pickString(
+  record: Record<string, unknown>,
+  ...keys: string[]
+): string | null {
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function normalizeTeachingReport(value: unknown): TeachingReport | null {
   if (typeof value !== "object" || value === null) {
-    return false;
+    return null;
   }
 
   const record = value as Record<string, unknown>;
+  const nested =
+    typeof record.report === "object" && record.report !== null
+      ? (record.report as Record<string, unknown>)
+      : record;
 
-  return (
-    typeof record.classroomEnvironment === "string" &&
-    typeof record.whatWentWrong === "string" &&
-    typeof record.areasToImprove === "string" &&
-    typeof record.topicSpecificFeedback === "string" &&
-    typeof record.overallScore === "number" &&
-    record.overallScore >= 0 &&
-    record.overallScore <= 100
+  const classroomEnvironment = pickString(
+    nested,
+    "classroomEnvironment",
+    "classroom_environment",
+    "environment",
   );
+  const whatWentWrong = pickString(
+    nested,
+    "whatWentWrong",
+    "what_went_wrong",
+    "issues",
+  );
+  const areasToImprove = pickString(
+    nested,
+    "areasToImprove",
+    "areas_to_improve",
+    "improvements",
+  );
+  const topicSpecificFeedback = pickString(
+    nested,
+    "topicSpecificFeedback",
+    "topic_specific_feedback",
+    "topicFeedback",
+    "topic_feedback",
+  );
+  const score = Number(
+    nested.overallScore ?? nested.overall_score ?? nested.score,
+  );
+
+  if (
+    !classroomEnvironment ||
+    !whatWentWrong ||
+    !areasToImprove ||
+    !topicSpecificFeedback ||
+    !Number.isFinite(score)
+  ) {
+    return null;
+  }
+
+  const overallScore = Math.round(Math.min(100, Math.max(0, score)));
+
+  return {
+    classroomEnvironment,
+    whatWentWrong,
+    areasToImprove,
+    topicSpecificFeedback,
+    overallScore,
+  };
 }
 
 function parseJsonContent(content: string): unknown {
@@ -105,12 +169,43 @@ function parseJsonContent(content: string): unknown {
   if (trimmed.startsWith("```")) {
     const withoutFence = trimmed
       .replace(/^```(?:json)?/i, "")
-      .replace(/```$/, "")
+      .replace(/```[\s\S]*$/m, "")
       .trim();
     return JSON.parse(withoutFence);
   }
 
-  return JSON.parse(trimmed);
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+
+    if (start >= 0 && end > start) {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    }
+
+    throw new Error("Coach returned an invalid report.");
+  }
+}
+
+function stripNotesPreamble(notes: string): string {
+  let text = notes.trim();
+
+  const preamble =
+    /^(?:sure[!,.]?|certainly[!,.]?|of course[!,.]?|here(?:'s| are)[^\n]*|let me[^\n]*|i(?:'ll| will)[^\n]*)\s*\n+/i;
+
+  while (preamble.test(text)) {
+    text = text.replace(preamble, "").trim();
+  }
+
+  if (text.startsWith("```")) {
+    text = text
+      .replace(/^```(?:\w+)?\s*\n?/i, "")
+      .replace(/\n?```\s*$/i, "")
+      .trim();
+  }
+
+  return text;
 }
 
 function mapConfigError(error: OpenRouterConfigError): MappedOpenRouterError {
@@ -121,113 +216,72 @@ function mapConfigError(error: OpenRouterConfigError): MappedOpenRouterError {
   };
 }
 
+const ANALYSIS_MAX_ATTEMPTS = 3;
+
+function invalidReportError(): Error {
+  return Object.assign(new Error("Coach returned an invalid report."), {
+    mapped: {
+      code: "schema_invalid" as const,
+      httpStatus: 502,
+      userMessage: "Coach returned an invalid report. Tap Retry.",
+    },
+  });
+}
+
 export async function analyzeTeachingTranscript(input: {
   transcript: string;
   subject: string;
   topic: string;
   classLevel: string;
 }): Promise<TeachingReport> {
-  let config: ReturnType<typeof getOpenRouterConfig>;
+  let lastError: unknown;
 
-  try {
-    config = getOpenRouterConfig();
-  } catch (error) {
-    if (error instanceof OpenRouterConfigError) {
-      throw Object.assign(new Error(error.message), {
-        mapped: mapConfigError(error),
+  for (let attempt = 0; attempt < ANALYSIS_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const content = await sarvamChatCompletion({
+        messages: [
+          { role: "system", content: TEACHING_ANALYSIS_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: buildTeachingAnalysisPrompt(
+              input.transcript,
+              input.subject,
+              input.topic,
+              input.classLevel,
+            ),
+          },
+        ],
+        maxTokens: 4096,
+        temperature: attempt === 0 ? 0.1 : 0.2,
+        contentOnly: true,
       });
-    }
 
-    throw error;
+      let parsed: unknown;
+
+      try {
+        parsed = parseJsonContent(content);
+      } catch {
+        throw invalidReportError();
+      }
+
+      const report = normalizeTeachingReport(parsed);
+
+      if (!report) {
+        throw invalidReportError();
+      }
+
+      return report;
+    } catch (error) {
+      lastError = error;
+      const mapped = (error as { mapped?: MappedOpenRouterError }).mapped;
+
+      if (mapped?.code !== "schema_invalid") {
+        throw error;
+      }
+    }
   }
 
-  const { apiKey, model } = config;
-
-  const requestBody = {
-    model,
-    messages: [
-      {
-        role: "user",
-        content: buildTeachingAnalysisPrompt(
-          input.transcript,
-          input.subject,
-          input.topic,
-          input.classLevel,
-        ),
-      },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: TEACHING_REPORT_JSON_SCHEMA,
-    },
-  };
-
-  const callModel = async (): Promise<TeachingReport> => {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://acharya.app",
-        "X-Title": "Acharya Teaching Coach",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const payload: unknown = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      const mapped = mapOpenRouterError(response.status, payload);
-      throw Object.assign(new Error(mapped.userMessage), {
-        mapped,
-      });
-    }
-
-    const content =
-      typeof payload === "object" &&
-      payload !== null &&
-      "choices" in payload &&
-      Array.isArray((payload as { choices: unknown[] }).choices)
-        ? ((payload as { choices: { message?: { content?: string } }[] }).choices[0]
-            ?.message?.content ?? "")
-        : "";
-
-    if (!content) {
-      throw Object.assign(new Error("Coach returned an empty response."), {
-        mapped: {
-          code: "schema_invalid" as const,
-          httpStatus: 502,
-          userMessage: "Coach returned an invalid report. Tap Retry.",
-        },
-      });
-    }
-
-    const parsed = parseJsonContent(content);
-
-    if (!isTeachingReport(parsed)) {
-      throw Object.assign(new Error("Coach returned an invalid report."), {
-        mapped: {
-          code: "schema_invalid" as const,
-          httpStatus: 502,
-          userMessage: "Coach returned an invalid report. Tap Retry.",
-        },
-      });
-    }
-
-    return parsed;
-  };
-
-  try {
-    return await callModel();
-  } catch (error) {
-    const mapped = (error as { mapped?: MappedOpenRouterError }).mapped;
-
-    if (mapped?.code === "schema_invalid") {
-      return await callModel();
-    }
-
-    throw error;
-  }
+  throw lastError ?? invalidReportError();
 }
 
 export async function generateClassNotes(input: {
@@ -236,33 +290,10 @@ export async function generateClassNotes(input: {
   topic: string;
   classLevel: string;
 }): Promise<string> {
-  let config: ReturnType<typeof getOpenRouterConfig>;
-
-  try {
-    config = getOpenRouterConfig();
-  } catch (error) {
-    if (error instanceof OpenRouterConfigError) {
-      throw Object.assign(new Error(error.message), {
-        mapped: mapConfigError(error),
-      });
-    }
-
-    throw error;
-  }
-
-  const { apiKey, model } = config;
-
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://acharya.app",
-      "X-Title": "Acharya Class Notes",
-    },
-    body: JSON.stringify({
-      model,
+  const notes = stripNotesPreamble(
+    await sarvamChatCompletion({
       messages: [
+        { role: "system", content: CLASS_NOTES_SYSTEM_PROMPT },
         {
           role: "user",
           content: buildClassNotesPrompt(
@@ -273,28 +304,11 @@ export async function generateClassNotes(input: {
           ),
         },
       ],
+      maxTokens: 4096,
+      temperature: 0.3,
+      contentOnly: true,
     }),
-  });
-
-  const payload: unknown = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const mapped = mapOpenRouterError(response.status, payload);
-    throw Object.assign(new Error(mapped.userMessage), {
-      mapped,
-    });
-  }
-
-  const content =
-    typeof payload === "object" &&
-    payload !== null &&
-    "choices" in payload &&
-    Array.isArray((payload as { choices: unknown[] }).choices)
-      ? ((payload as { choices: { message?: { content?: string } }[] }).choices[0]
-          ?.message?.content ?? "")
-      : "";
-
-  const notes = content.trim();
+  );
 
   if (!notes) {
     throw Object.assign(new Error("Notes generator returned an empty response."), {
@@ -435,6 +449,14 @@ export async function streamChatCompletion(input: {
 export function getOpenRouterMappedError(error: unknown): MappedOpenRouterError {
   if (error instanceof OpenRouterConfigError) {
     return mapConfigError(error);
+  }
+
+  if (error instanceof AiConfigError) {
+    return {
+      code: "auth_config",
+      httpStatus: 500,
+      userMessage: error.message,
+    };
   }
 
   if (
