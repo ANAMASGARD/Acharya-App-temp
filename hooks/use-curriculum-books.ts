@@ -13,6 +13,7 @@ type UseCurriculumBooksResult = Readonly<{
 export function useCurriculumBooks(
   classLevel: string | null,
   subject: string | null,
+  includeChapters = false,
 ): UseCurriculumBooksResult {
   const { getToken } = useAuth();
   const getTokenRef = useRef(getToken);
@@ -37,6 +38,9 @@ export function useCurriculumBooks(
         classLevel,
         subject,
       });
+      if (includeChapters) {
+        params.set("includeChapters", "true");
+      }
       const response = await apiFetch<CurriculumBooksResponse>(
         `/api/curriculum/books?${params.toString()}`,
         { token },
@@ -48,7 +52,7 @@ export function useCurriculumBooks(
     } finally {
       setIsLoading(false);
     }
-  }, [classLevel, subject]);
+  }, [classLevel, subject, includeChapters]);
 
   useEffect(() => {
     void refresh();

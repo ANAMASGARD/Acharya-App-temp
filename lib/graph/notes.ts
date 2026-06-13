@@ -2,7 +2,11 @@ import { runWriteQuery } from "@/lib/neo4j";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
 import type { RetrievedChunk } from "@/lib/rag/retrieve";
 import type { VerificationGap } from "@/types/notes-verification";
-import type { ChapterCoverage, GeneratedPaper } from "@/types/question-paper";
+import type {
+  ChapterCoverage,
+  GeneratedPaper,
+  WeightageReport,
+} from "@/types/question-paper";
 import { createHash, randomUUID } from "node:crypto";
 
 type ReportRow = Readonly<{
@@ -92,6 +96,7 @@ export async function saveVerificationReport(input: {
   chapterCoverage?: ChapterCoverage;
   gaps?: readonly VerificationGap[];
   difficultySummary?: string;
+  weightage?: WeightageReport;
   generatedPaper?: GeneratedPaper;
   paperType?: string | null;
   difficulty?: string | null;
@@ -116,6 +121,7 @@ export async function saveVerificationReport(input: {
       chapterCoverage: $chapterCoverage,
       gaps: $gaps,
       difficultySummary: $difficultySummary,
+      weightageJson: $weightageJson,
       generatedPaper: $generatedPaper,
       paperType: $paperType,
       difficulty: $difficulty,
@@ -141,6 +147,7 @@ export async function saveVerificationReport(input: {
         : null,
       gaps: input.gaps ? JSON.stringify(input.gaps) : null,
       difficultySummary: input.difficultySummary ?? null,
+      weightageJson: input.weightage ? JSON.stringify(input.weightage) : null,
       generatedPaper: input.generatedPaper
         ? JSON.stringify(input.generatedPaper)
         : null,

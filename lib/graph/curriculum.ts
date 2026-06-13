@@ -1,6 +1,7 @@
 import { runReadQuery } from "@/lib/neo4j";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
 import type {
+  ChapterWeight,
   CurriculumBookSummary,
   CurriculumChapterSummary,
 } from "@/types/question-paper";
@@ -75,6 +76,52 @@ export async function getChaptersForBook(bookId: string): Promise<CurriculumChap
       index: typeof chapter.index === "number" ? chapter.index : 0,
     };
   });
+}
+
+type ChapterWeightRow = Readonly<{
+  chapterId: string;
+  title: string;
+  index: number | { low: number; high: number };
+  chunkCount: number | { low: number; high: number };
+}>;
+
+/**
+ * In-scope chapters with their content volume (chunk count) for weightage
+ * analysis. Pass `chapterIds` to limit scope (e.g. the chapters of a
+ * half-yearly exam); omit it to weigh all chapters of the selected books.
+ */
+export async function getChapterWeights(
+  bookIds: readonly string[],
+  chapterIds?: readonly string[],
+): Promise<ChapterWeight[]> {
+  if (bookIds.length === 0) {
+    return [];
+  }
+
+  const rows = await runReadQuery<ChapterWeightRow>(
+    `
+    MATCH (chunk:Chunk)-[:IN_CHAPTER]->(ch:Chapter)-[:PART_OF]->(book:CurriculumBook)
+    WHERE book.bookId IN $bookIds
+      AND ($chapterIds IS NULL OR ch.chapterId IN $chapterIds)
+    WITH ch, count(chunk) AS chunkCount
+    RETURN ch.chapterId AS chapterId,
+           coalesce(ch.title, ch.chapterId) AS title,
+           coalesce(ch.index, 0) AS index,
+           chunkCount
+    ORDER BY index ASC, title ASC
+  `,
+    {
+      bookIds: [...bookIds],
+      chapterIds: chapterIds && chapterIds.length > 0 ? [...chapterIds] : null,
+    },
+  );
+
+  return rows.map((row) => ({
+    chapterId: String(row.chapterId),
+    title: String(row.title),
+    index: toNumber(row.index),
+    chunkCount: toNumber(row.chunkCount),
+  }));
 }
 
 export type CurriculumAvailabilitySlot = Readonly<{

@@ -33,6 +33,42 @@ export type ChapterCoverage = Readonly<{
   missing: readonly string[];
 }>;
 
+/** A curriculum chapter with its content volume (chunk count) from the graph. */
+export type ChapterWeight = Readonly<{
+  chapterId: string;
+  title: string;
+  index: number;
+  chunkCount: number;
+}>;
+
+/** One question's marks attributed to a chapter title (or "Out of syllabus"). */
+export type QuestionAttribution = Readonly<{
+  marks: number;
+  chapter: string;
+}>;
+
+export type WeightageStatus = "aligned" | "over" | "under" | "missing";
+
+/** Per-chapter weightage comparison between the paper and the even-split target. */
+export type WeightageChapter = Readonly<{
+  chapterTitle: string;
+  expectedPct: number;
+  actualPct: number;
+  marks: number;
+  delta: number;
+  status: WeightageStatus;
+}>;
+
+/** Deterministic weightage analysis of an uploaded question paper. */
+export type WeightageReport = Readonly<{
+  totalMarks: number;
+  balanceScore: number;
+  chapters: readonly WeightageChapter[];
+  outOfSyllabusMarks: number;
+  outOfSyllabusPct: number;
+  contentInsight: string | null;
+}>;
+
 export type RetrievalDebugMatch = Readonly<{
   chunkId: string;
   chapterTitle: string;
@@ -53,6 +89,7 @@ export type QuestionPaperVerifyResult = Readonly<{
   chapterCoverage: ChapterCoverage;
   gaps: readonly VerificationGap[];
   difficultySummary: string;
+  weightage?: WeightageReport;
   extractionWarning?: ExtractionWarning;
   retrievalDebug?: RetrievalDebug;
 }>;

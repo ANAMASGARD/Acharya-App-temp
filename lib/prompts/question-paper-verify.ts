@@ -31,8 +31,31 @@ export const QUESTION_PAPER_VERIFY_JSON_SCHEMA = {
           additionalProperties: false,
         },
       },
+      questions: {
+        type: "array",
+        description:
+          "One entry per question in the paper, with its marks and the in-scope chapter it belongs to (exact title) or 'Out of syllabus'.",
+        items: {
+          type: "object",
+          properties: {
+            marks: { type: "number", description: "Marks allotted to this question" },
+            chapter: {
+              type: "string",
+              description: "Exact in-scope chapter title, or 'Out of syllabus'",
+            },
+          },
+          required: ["marks", "chapter"],
+          additionalProperties: false,
+        },
+      },
     },
-    required: ["alignmentScore", "difficultySummary", "chapterCoverage", "gaps"],
+    required: [
+      "alignmentScore",
+      "difficultySummary",
+      "chapterCoverage",
+      "gaps",
+      "questions",
+    ],
     additionalProperties: false,
   },
 } as const;
@@ -43,6 +66,7 @@ export function buildVerifyPrompt(input: {
   bookTitles: readonly string[];
   paperText?: string;
   retrievedChunks: readonly RetrievedChunk[];
+  inScopeChapters: readonly string[];
   isImage: boolean;
 }): string {
   const context = input.retrievedChunks
@@ -56,12 +80,20 @@ export function buildVerifyPrompt(input: {
     ? "The teacher uploaded a PHOTO of their question paper (attached as image). Read the image directly."
     : `Question paper text:\n${input.paperText ?? "(empty)"}`;
 
+  const chapterList =
+    input.inScopeChapters.length > 0
+      ? input.inScopeChapters.map((title) => `- ${title}`).join("\n")
+      : "(no specific chapters provided)";
+
   return `You are Acharya — an expert CBSE curriculum reviewer for Indian school teachers.
 
 Analyze whether the teacher's question paper aligns with NCERT curriculum for:
 - Class: ${input.classLevel}
 - Subject: ${input.subject}
 - Selected NCERT books: ${input.bookTitles.join(", ")}
+
+In-scope chapters for this exam (use these EXACT titles when attributing questions):
+${chapterList}
 
 ${paperSection}
 
@@ -73,6 +105,7 @@ Return JSON with:
 - difficultySummary: easy/moderate/hard mix assessment in 1-2 sentences
 - chapterCoverage: which chapters from the selected books are covered vs missing
 - gaps: 3-6 actionable cards for the teacher (in-syllabus praise, out-of-context warnings, missing chapters, suggested questions to add). Use variant coral for problems, coralLight for suggestions, neutral for praise.
+- questions: one entry per question in the paper. For each, give its marks (number) and the single in-scope chapter it tests, using EXACTLY one of the chapter titles listed above. If a question does not belong to any in-scope chapter, set chapter to "Out of syllabus". If marks are not printed, estimate a sensible value (e.g. 1 for MCQ/fill-in, more for long answers).
 
 Be practical for a teacher making unit tests, half-yearly papers, or quizzes.`;
 }

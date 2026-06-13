@@ -1,6 +1,6 @@
 import { authErrorResponse, requireAuth } from "@/lib/api-auth";
 import { getNotesMaxUploadBytes, isRagDebugEnabled } from "@/lib/ai-config";
-import { getBookTitles } from "@/lib/graph/curriculum";
+import { getBookTitles, getChapterWeights } from "@/lib/graph/curriculum";
 import {
   hashText,
   linkCurriculumMatches,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/rag/extract-text";
 import { hybridRetrieveCurriculumChunks } from "@/lib/rag/retrieve";
 import { evaluateQuestionPaper } from "@/lib/rag/verify-evaluate";
+import { computeWeightage } from "@/lib/rag/weightage";
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -39,6 +40,10 @@ export async function POST(request: Request): Promise<Response> {
     ).trim();
     const bookIds = form
       .getAll("bookIds")
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+    const chapterIds = form
+      .getAll("chapterIds")
       .map((value) => String(value).trim())
       .filter(Boolean);
 
@@ -100,6 +105,10 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     const bookTitles = await getBookTitles(bookIds);
+    const inScopeChapters = await getChapterWeights(
+      bookIds,
+      chapterIds.length > 0 ? chapterIds : undefined,
+    );
 
     const llmResult = await evaluateQuestionPaper({
       classLevel,
@@ -109,8 +118,15 @@ export async function POST(request: Request): Promise<Response> {
       imageBuffer,
       imageMime,
       retrievedChunks: matches,
+      inScopeChapters,
       extractionWarning,
     });
+
+    const weightage =
+      computeWeightage({
+        questions: llmResult.questions,
+        chapters: inScopeChapters,
+      }) ?? undefined;
 
     const verificationId = await saveVerificationReport({
       clerkId: userId,
@@ -122,6 +138,7 @@ export async function POST(request: Request): Promise<Response> {
       chapterCoverage: llmResult.chapterCoverage,
       gaps: llmResult.gaps,
       difficultySummary: llmResult.difficultySummary,
+      weightage,
       sourceMime: mimeType,
       sourceFileName: fileName,
       extractionWarning: extractionWarning ?? null,
@@ -154,6 +171,7 @@ export async function POST(request: Request): Promise<Response> {
       chapterCoverage: llmResult.chapterCoverage,
       gaps: llmResult.gaps,
       difficultySummary: llmResult.difficultySummary,
+      weightage,
       extractionWarning,
       retrievalDebug: isRagDebugEnabled() ? { matches: debug } : undefined,
     });

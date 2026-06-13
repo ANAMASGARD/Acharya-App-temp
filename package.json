@@ -15,6 +15,7 @@
     "neo4j:test": "node scripts/test-neo4j-integration.mjs",
     "neo4j:test-api": "node scripts/test-neo4j-api-layer.mjs",
     "memory:test": "node scripts/test-memory.mjs",
+    "weightage:test": "node scripts/test-weightage.mjs",
     "neo4j:introspect": "node scripts/aura-introspect.mjs",
     "neo4j:ingest-books": "node scripts/ingest-ncert-books.mjs",
     "books:download": "bash scripts/download-ncert-demo-books.sh",

@@ -9,13 +9,19 @@ import {
 } from "@/lib/prompts/question-paper-verify";
 import type { RetrievedChunk } from "@/lib/rag/retrieve";
 import type { VerificationGap } from "@/types/notes-verification";
-import type { ChapterCoverage, ExtractionWarning } from "@/types/question-paper";
+import type {
+  ChapterCoverage,
+  ChapterWeight,
+  ExtractionWarning,
+  QuestionAttribution,
+} from "@/types/question-paper";
 
 type VerifyLlmResult = Readonly<{
   alignmentScore: number;
   difficultySummary: string;
   chapterCoverage: ChapterCoverage;
   gaps: VerificationGap[];
+  questions: QuestionAttribution[];
 }>;
 
 function parseJsonContent(content: string): unknown {
@@ -52,6 +58,30 @@ function isVerifyResult(value: unknown): value is VerifyLlmResult {
   );
 }
 
+function parseQuestions(value: unknown): QuestionAttribution[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const questions: QuestionAttribution[] = [];
+
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) {
+      continue;
+    }
+
+    const record = item as Record<string, unknown>;
+    const marks = typeof record.marks === "number" ? record.marks : Number(record.marks);
+    const chapter = typeof record.chapter === "string" ? record.chapter.trim() : "";
+
+    if (Number.isFinite(marks) && marks > 0 && chapter.length > 0) {
+      questions.push({ marks, chapter });
+    }
+  }
+
+  return questions;
+}
+
 export async function evaluateQuestionPaper(input: {
   classLevel: string;
   subject: string;
@@ -60,6 +90,7 @@ export async function evaluateQuestionPaper(input: {
   imageBuffer?: Buffer;
   imageMime?: string;
   retrievedChunks: readonly RetrievedChunk[];
+  inScopeChapters: readonly ChapterWeight[];
   extractionWarning?: ExtractionWarning;
 }): Promise<VerifyLlmResult> {
   const isImage = Boolean(input.imageBuffer && input.imageMime);
@@ -69,6 +100,7 @@ export async function evaluateQuestionPaper(input: {
     bookTitles: input.bookTitles,
     paperText: input.paperText,
     retrievedChunks: input.retrievedChunks,
+    inScopeChapters: input.inScopeChapters.map((chapter) => chapter.title),
     isImage,
   });
 
@@ -156,5 +188,6 @@ export async function evaluateQuestionPaper(input: {
       body: gap.body,
       variant: gap.variant,
     })),
+    questions: parseQuestions((parsed as { questions?: unknown }).questions),
   };
 }

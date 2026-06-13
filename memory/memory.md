@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 16 — Graph-native long-term agent memory** ✅ Chat Acharya now stateful + personalized across conversations (mem0-style on Neo4j) |
-| **Previous phases** | Phase 15 code-quality hardening (`c7c8dde`), Phase 14 recorder Sarvam-30B (`ce522f9`), Phase 13 voice agent |
+| **Phase** | **Phase 17 — Question-paper weightage verification** ✅ upload a paper → per-chapter weightage vs even-split target + out-of-syllabus + balance score (graph-powered) |
+| **Previous phases** | Phase 16 graph-native memory (`0ff7835`), Phase 15 code-quality hardening (`c7c8dde`), Phase 14 recorder Sarvam-30B (`ce522f9`) |
 | **Branch** | `main` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat (text + **voice**), notes, Home + community |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
@@ -180,20 +180,26 @@ store/chat-store.ts                     — messages + voice transcript append +
 
 ## 5. Current State
 
-> **Status:** Phase 16 — graph-native long-term agent memory (mem0-style) for Chat Acharya. Foundation for the larger agentic/truth-seeking roadmap (Reality Check + agentic tool-calling chat + live board curriculum). Plan: `~/.claude/plans/your-usp-hackathon-judge-iterative-metcalfe.md`.
+> **Status:** Phase 17 — question-paper **weightage verification**. Teachers upload a paper and, on top of the existing alignment score / chapter coverage / gap cards, get a per-chapter **weightage balance** (actual marks % vs an even-split target), out-of-syllabus detection, an overall balance score, and a graph-powered content-depth insight. NotebookLM can generate a paper but cannot verify one — this is the differentiator.
 
-### Phase 16 — what shipped (Chat Acharya is now stateful)
+### Phase 17 — what shipped (question-paper weightage)
 
 | Area | Implementation |
 |------|----------------|
-| Memory store | `lib/graph/memory.ts` → `extractAndStoreMemories()`: Sarvam-30B extracts ≤3 durable facts per turn (`contentOnly`, JSON), `embedTexts()` (batched), MERGE deduped `Memory { clerkId, normText }` linked `(Teacher)-[:HAS_MEMORY]->(Memory)` |
-| Memory recall | `recallMemories()` → vector search `memory_embedding` (1536-d cosine), over-fetch then filter by `clerkId`; `formatMemoriesForPrompt()` |
-| Chat wiring | `app/api/chat/completions+api.ts` — recall **awaited** before prompt (via `buildChatSystemContent(snapshot, memoryBlock)`), extract **fire-and-forget** after reply (best-effort, `RAG_DEBUG` logs failures) |
-| Schema | `Memory`/`Claim`/`SyllabusDoc` constraints + composite `(clerkId, normText)` uniqueness; `memory_embedding` vector index; `memory_clerk` / `curriculum_book_board` / `syllabus_doc_lookup` indexes; board fields on `CurriculumBook` |
-| Roadmap nodes (declared, not yet implemented) | `Claim`, `SyllabusDoc`, `(Session)-[:HAS_CLAIM]->(Claim)-[:CHECKED_AGAINST]->(Chunk)` — land in Phase 3 (Reality Check) |
-| Verification | `npm run memory:test` (live store+recall+cleanup), `npm run neo4j:test`, `verify:neo4j`, lint, tsc — all pass |
+| Expected target | **Even split** across in-scope chapters (teacher's "5 chapters → 20% each" model) + a graph-powered content-depth note (heaviest chapter by chunk count) |
+| Graph query | `lib/graph/curriculum.ts` → `getChapterWeights(bookIds, chapterIds?)` — chunk-count per in-scope chapter via `(Chunk)-[:IN_CHAPTER]->(Chapter)-[:PART_OF]->(book)` |
+| LLM attribution | `lib/prompts/question-paper-verify.ts` schema adds `questions:[{marks,chapter}]`; `lib/rag/verify-evaluate.ts` takes `inScopeChapters`, parses defensively |
+| Compute (deterministic, pure) | `lib/rag/weightage.ts` → `computeWeightage()`: per-chapter actual%/delta/status (aligned/over/under/missing), out-of-syllabus marks, `balanceScore` (TV-distance complement), content insight |
+| API | `app/api/notes/verify+api.ts` reads optional `chapterIds`, computes + returns + persists weightage; `saveVerificationReport` stores `weightageJson` |
+| UI (Neo-Brutal) | `weightage-breakdown.tsx` (bars + target marker, OVER/UNDER/MISSING chips, score badge, insight), `chapter-scope-select.tsx` (optional collapsible chapter picker), `notes-upload-screen.tsx` (explainer card, clean 1·2·3·4 steps) |
+| Graceful fallback | If LLM returns no `questions`, weightage omitted → original score/coverage/gaps render unchanged |
+| Verification | `npm run weightage:test` (live `getChapterWeights` + compute math), lint, tsc — all pass; no schema migration needed |
 
-**Notes for future agents:** AI SDK deps (`ai` / `@ai-sdk/google` / `@openrouter/ai-sdk-provider`) were intentionally **removed** until Phase 2 wires `streamText` + tools (don't ship unused deps — AGENTS.md). Memory facts are stored in English even when chat is multilingual (extractor normalizes). Next: **Phase 3 Reality Check** (schema already primed), then Phase 2 agentic tools, then Phase 4 live curriculum.
+**Notes for future agents:** AI SDK deps (`ai` / `@ai-sdk/google` / `@openrouter/ai-sdk-provider`) were intentionally **removed** in Phase 16 — re-add only when Phase 4 wires `streamText` + tools (don't ship unused deps — AGENTS.md). Roadmap remaining (full detail in plan `~/.claude/plans/your-usp-hackathon-judge-iterative-metcalfe.md`): **Phase 4** agentic tool-calling chat, **Phase 5** recorder Reality Check (truth-seeking; `Claim`/`CHECKED_AGAINST` schema already primed) + live CBSE/ICSE curriculum. Memory facts stored in English even when chat is multilingual.
+
+### Prior state (Phase 16 — graph-native memory, still active)
+
+> `lib/graph/memory.ts` — Chat Acharya recalls durable `Memory` facts (vector `memory_embedding`) and extracts new ones per turn (fire-and-forget). Recall awaited before the prompt; extraction off the response path. `npm run memory:test` passes.
 
 ### Prior state (Phase 14 — still current)
 
@@ -229,7 +235,15 @@ hooks/use-recorder.ts         — clear classNotes on new recording
 
 ## 6. Commit Log (oldest → newest)
 
-### *(pending commit)* — feat: graph-native long-term teacher memory for Chat Acharya (Phase 16)
+### *(pending commit)* — feat: question-paper weightage verification (Phase 17)
+
+- `lib/rag/weightage.ts` (pure `computeWeightage`): even-split target, per-chapter actual%/status (aligned/over/under/missing), out-of-syllabus marks, balance score, content-depth insight
+- `lib/graph/curriculum.ts` `getChapterWeights` (chunk-count per chapter); verify schema/prompt add `questions:[{marks,chapter}]`; `verify-evaluate` parses + maps
+- `app/api/notes/verify+api.ts` reads optional `chapterIds`, computes + persists (`weightageJson`)
+- UI: `weightage-breakdown.tsx`, `chapter-scope-select.tsx`, upload-screen explainer + 1·2·3·4 steps (Neo-Brutal, no new deps)
+- `scripts/test-weightage.mjs` + `npm run weightage:test`; graceful fallback when no questions; lint + tsc + weightage:test pass
+
+### `0ff7835` — feat: graph-native long-term teacher memory for Chat Acharya (Phase 16)
 
 - `lib/graph/memory.ts`: store/recall `Memory` nodes via `memory_embedding` vector index; inject recalled facts into chat system prompt; extract durable facts after each turn (best-effort, off response path)
 - Schema: `Memory`/`Claim`/`SyllabusDoc` constraints (incl. composite `(clerkId, normText)`), `memory_embedding` index, board fields + lookup indexes; applied to Aura
@@ -330,4 +344,4 @@ npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
 
 ---
 
-*Last updated: 2026-06-13 — Phase 16 graph-native long-term agent memory: Chat Acharya stateful/personalized via `memory_embedding`; schema extended for the agentic/truth-seeking roadmap. Next: Phase 3 Reality Check. lint/tsc/memory:test/neo4j:test all pass.*
+*Last updated: 2026-06-13 — Phase 17 question-paper weightage verification: even-split target + graph content-depth insight + out-of-syllabus + balance score; optional chapter scope. lint/tsc/weightage:test all pass. Next: Phase 4 agentic chat, Phase 5 Reality Check + live curriculum.*

@@ -18,6 +18,7 @@ export function useQuestionPaperVerify(input: {
   selectedFile: NotesUploadFile | null;
   selection: CurriculumSelection | null;
   selectedBookIds: readonly string[];
+  selectedChapterIds?: readonly string[];
 }): UseQuestionPaperVerifyResult {
   const { getToken } = useAuth();
   const getTokenRef = useRef(getToken);
@@ -63,6 +64,10 @@ export function useQuestionPaperVerify(input: {
         formData.append("bookIds", bookId);
       }
 
+      for (const chapterId of input.selectedChapterIds ?? []) {
+        formData.append("chapterIds", chapterId);
+      }
+
       const response = await apiMultipartFetch<QuestionPaperVerifyResult>(
         "/api/notes/verify",
         { token, formData },
@@ -74,7 +79,12 @@ export function useQuestionPaperVerify(input: {
     } finally {
       setIsVerifying(false);
     }
-  }, [input.selectedBookIds, input.selectedFile, input.selection]);
+  }, [
+    input.selectedBookIds,
+    input.selectedChapterIds,
+    input.selectedFile,
+    input.selection,
+  ]);
 
   const clearResult = useCallback((): void => {
     setResult(null);

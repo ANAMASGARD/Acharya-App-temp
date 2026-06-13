@@ -1,8 +1,10 @@
 import { AnimatedMenuDots } from "@/components/verification/animated-menu-dots";
 import { BookMultiSelect } from "@/components/verification/book-multi-select";
+import { ChapterScopeSelect } from "@/components/verification/chapter-scope-select";
 import { CurriculumSelectSheet } from "@/components/verification/curriculum-select-sheet";
 import { UploadDropZone } from "@/components/verification/upload-drop-zone";
 import { VerificationGapsTimeline } from "@/components/verification/verification-gaps-timeline";
+import { WeightageBreakdown } from "@/components/verification/weightage-breakdown";
 import { useCurriculumBooks } from "@/hooks/use-curriculum-books";
 import { useCurriculumSelection } from "@/hooks/use-curriculum-selection";
 import { useQuestionPaperUpload } from "@/hooks/use-question-paper-upload";
@@ -23,6 +25,7 @@ export function NotesUploadScreen(): React.ReactElement {
   const router = useRouter();
   const teachingClassIds = usePreferencesStore((state) => state.teachingClassIds);
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
+  const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
 
   const {
     selectedFile,
@@ -50,6 +53,7 @@ export function NotesUploadScreen(): React.ReactElement {
   const { books, isLoading: booksLoading, error: booksError } = useCurriculumBooks(
     selection?.classId ?? null,
     selection?.subjectId ?? null,
+    true,
   );
 
   const {
@@ -63,6 +67,7 @@ export function NotesUploadScreen(): React.ReactElement {
     selectedFile,
     selection,
     selectedBookIds,
+    selectedChapterIds,
   });
 
   const curriculumClasses = useMemo(
@@ -77,6 +82,14 @@ export function NotesUploadScreen(): React.ReactElement {
       current.includes(bookId)
         ? current.filter((id) => id !== bookId)
         : [...current, bookId],
+    );
+  }, []);
+
+  const toggleChapter = useCallback((chapterId: string): void => {
+    setSelectedChapterIds((current) =>
+      current.includes(chapterId)
+        ? current.filter((id) => id !== chapterId)
+        : [...current, chapterId],
     );
   }, []);
 
@@ -98,8 +111,14 @@ export function NotesUploadScreen(): React.ReactElement {
 
   useEffect(() => {
     setSelectedBookIds([]);
+    setSelectedChapterIds([]);
     clearResult();
   }, [selection?.classId, selection?.subjectId, clearResult]);
+
+  // Chapter scope belongs to the chosen books — reset it when the book set changes.
+  useEffect(() => {
+    setSelectedChapterIds([]);
+  }, [selectedBookIds]);
 
   useEffect(() => {
     if (books.length === 1 && selectedBookIds.length === 0) {
@@ -182,6 +201,17 @@ export function NotesUploadScreen(): React.ReactElement {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.explainerCard}>
+          <Text style={styles.explainerTitle}>Check a paper against the syllabus</Text>
+          <Text style={styles.explainerBody}>
+            Upload a question paper (PDF, Word, or a photo) and Acharya checks it against the NCERT
+            curriculum — chapter coverage, difficulty mix, and per-chapter weightage balance. Pick the
+            class, subject, and books, then verify.
+          </Text>
+        </View>
+
+        <Text style={styles.stepLabel}>1 · Upload your question paper</Text>
+
         <UploadDropZone
           canVerify={canVerify}
           error={error}
@@ -223,6 +253,18 @@ export function NotesUploadScreen(): React.ReactElement {
           </Text>
         )}
 
+        {selection && selectedBookIds.length > 0 ? (
+          <View style={styles.stepSection}>
+            <Text style={styles.stepLabel}>3 · Exam scope</Text>
+            <ChapterScopeSelect
+              books={books}
+              onToggleChapter={toggleChapter}
+              selectedBookIds={selectedBookIds}
+              selectedChapterIds={selectedChapterIds}
+            />
+          </View>
+        ) : null}
+
         {result?.extractionWarning === "image_unclear" ? (
           <View style={styles.warningBanner}>
             <Text style={styles.warningText}>
@@ -244,6 +286,7 @@ export function NotesUploadScreen(): React.ReactElement {
             {result.difficultySummary ? (
               <Text style={styles.difficultyText}>{result.difficultySummary}</Text>
             ) : null}
+            <WeightageBreakdown weightage={result.weightage} />
             <VerificationGapsTimeline gaps={gaps} />
           </View>
         ) : null}
@@ -297,6 +340,27 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sans,
     fontSize: 14,
     lineHeight: 20,
+  },
+  explainerBody: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sans,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  explainerCard: {
+    backgroundColor: colors.accent,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: borderWidths.default,
+    gap: spacing.xs,
+    padding: spacing.lg,
+    ...shadows.sm,
+  },
+  explainerTitle: {
+    color: colors.foreground,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 17,
+    lineHeight: 22,
   },
   generateLink: {
     paddingHorizontal: spacing.lg,
