@@ -1,3 +1,4 @@
+import { isRagDebugEnabled } from "@/lib/ai-config";
 import { requireAuth } from "@/lib/api-auth";
 import { buildChatSystemContent } from "@/lib/prompts/chat-coach";
 import {
@@ -5,6 +6,11 @@ import {
   getOrCreateConversation,
   listMessages,
 } from "@/lib/graph/chat";
+import {
+  extractAndStoreMemories,
+  formatMemoriesForPrompt,
+  recallMemories,
+} from "@/lib/graph/memory";
 import {
   getOpenRouterMappedError,
   streamChatCompletion,
@@ -46,10 +52,22 @@ export async function POST(request: Request): Promise<Response> {
     );
 
     const history = await listMessages(userId, conversation.conversationId, 50);
+
+    // Recall durable long-term memory for this teacher (best-effort).
+    const memories = await recallMemories(userId, message, 6).catch((error) => {
+      if (isRagDebugEnabled()) {
+        console.warn("[memory] recall failed:", error);
+      }
+      return [];
+    });
+
     const openRouterMessages: OpenRouterChatMessage[] = [
       {
         role: "system",
-        content: buildChatSystemContent(conversation.contextSnapshot),
+        content: buildChatSystemContent(
+          conversation.contextSnapshot,
+          formatMemoriesForPrompt(memories),
+        ),
       },
       ...history
         .filter((entry) => entry.role === "user" || entry.role === "assistant")
@@ -95,6 +113,20 @@ export async function POST(request: Request): Promise<Response> {
         "assistant",
         accumulated,
       );
+
+      // Extract durable memory from this exchange. Best-effort and off the
+      // response path — this runs on a long-lived Node server, so we do not
+      // await it (and swallow failures) to avoid adding latency to the reply.
+      void extractAndStoreMemories({
+        clerkId: userId,
+        conversationId: conversation.conversationId,
+        userMessage: message,
+        assistantMessage: accumulated,
+      }).catch((error) => {
+        if (isRagDebugEnabled()) {
+          console.warn("[memory] extract failed:", error);
+        }
+      });
 
       ndjsonLines.push(
         JSON.stringify({

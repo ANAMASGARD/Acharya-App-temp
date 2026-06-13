@@ -58,6 +58,22 @@ FOR (g:CommunityGroup) REQUIRE g.groupId IS UNIQUE;
 CREATE CONSTRAINT group_message_id IF NOT EXISTS
 FOR (m:GroupMessage) REQUIRE m.messageId IS UNIQUE;
 
+// --- Agent long-term memory + truth-check (Phase 16+) ---
+
+CREATE CONSTRAINT memory_id IF NOT EXISTS
+FOR (m:Memory) REQUIRE m.memoryId IS UNIQUE;
+
+// Backs the dedup MERGE on (clerkId, normText) — prevents duplicate memories
+// under concurrent writes.
+CREATE CONSTRAINT memory_clerk_text IF NOT EXISTS
+FOR (m:Memory) REQUIRE (m.clerkId, m.normText) IS UNIQUE;
+
+CREATE CONSTRAINT claim_id IF NOT EXISTS
+FOR (c:Claim) REQUIRE c.claimId IS UNIQUE;
+
+CREATE CONSTRAINT syllabus_doc_id IF NOT EXISTS
+FOR (s:SyllabusDoc) REQUIRE s.syllabusDocId IS UNIQUE;
+
 // --- Lookup indexes ---
 
 CREATE INDEX session_recorded_at IF NOT EXISTS
@@ -90,10 +106,30 @@ FOR (g:CommunityGroup) ON (g.joinCode);
 CREATE INDEX group_message_created IF NOT EXISTS
 FOR (m:GroupMessage) ON (m.createdAt);
 
+CREATE INDEX memory_clerk IF NOT EXISTS
+FOR (m:Memory) ON (m.clerkId);
+
+CREATE INDEX curriculum_book_board IF NOT EXISTS
+FOR (b:CurriculumBook) ON (b.board);
+
+CREATE INDEX syllabus_doc_lookup IF NOT EXISTS
+FOR (s:SyllabusDoc) ON (s.board, s.classLevel, s.subject);
+
 // --- Vector index for RAG (adjust dimensions to match embedder) ---
 
 CREATE VECTOR INDEX chunk_embedding IF NOT EXISTS
 FOR (c:Chunk) ON (c.embedding)
+OPTIONS {
+  indexConfig: {
+    `vector.dimensions`: 1536,
+    `vector.similarity_function`: 'cosine'
+  }
+};
+
+// --- Vector index for agent long-term memory (mirrors chunk_embedding) ---
+
+CREATE VECTOR INDEX memory_embedding IF NOT EXISTS
+FOR (m:Memory) ON (m.embedding)
 OPTIONS {
   indexConfig: {
     `vector.dimensions`: 1536,

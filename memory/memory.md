@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 15 — Code-quality hardening pass** ✅ reliability fixes across voice/chat/recorder (no feature change) |
-| **Previous phases** | Phase 14 recorder Sarvam-30B (`ce522f9`), Phase 13 voice agent, Phase 12 glass tab bar (`6b6c374`) |
+| **Phase** | **Phase 16 — Graph-native long-term agent memory** ✅ Chat Acharya now stateful + personalized across conversations (mem0-style on Neo4j) |
+| **Previous phases** | Phase 15 code-quality hardening (`c7c8dde`), Phase 14 recorder Sarvam-30B (`ce522f9`), Phase 13 voice agent |
 | **Branch** | `main` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat (text + **voice**), notes, Home + community |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
@@ -180,20 +180,20 @@ store/chat-store.ts                     — messages + voice transcript append +
 
 ## 5. Current State
 
-> **Status:** Phase 15 — code-quality hardening pass (no feature change). Deep manual audit found a **high-quality codebase** (strict TS, 0 `any`, parameterized Cypher, centralized `requireAuth`, clean client/server boundary). Applied 6 reliability/polish fixes; lint + tsc clean.
+> **Status:** Phase 16 — graph-native long-term agent memory (mem0-style) for Chat Acharya. Foundation for the larger agentic/truth-seeking roadmap (Reality Check + agentic tool-calling chat + live board curriculum). Plan: `~/.claude/plans/your-usp-hackathon-judge-iterative-metcalfe.md`.
 
-### Phase 15 hardening fixes (audit-driven, no behavior change beyond reliability)
+### Phase 16 — what shipped (Chat Acharya is now stateful)
 
-| Fix | File | What |
-|-----|------|------|
-| Audio playback no longer hangs | `lib/voice/transports/websocket-transport.ts` | fire-and-forget `playAudioBase64` now `.catch()`es → resets phase to `listening` + surfaces error instead of stuck on `speaking` |
-| Stream reader released | `lib/openrouter.ts` | chat stream read loop wrapped in `try/finally` with `reader.cancel()` on abort/error |
-| Analyze offline guard | `hooks/use-recorder.ts` | `apiAnalyzeTranscript` wrapped in try/catch — network reject no longer leaves status stuck on `analyzing` |
-| Scroll jump | `components/chat/chat-message-list.tsx` | removed redundant `composerInset` from scroll-to-end deps (KeyboardAwareScrollView handles keyboard) |
-| Touch targets | `post-image-picker`, `post-top-actions`, `notes-upload-screen`, `upload-drop-zone` | `hitSlop={8}` → 12px box on small icon buttons |
-| Transcript webhook resilience | `services/voice-{local,livekit}/.../transcript.py` | `raise_for_status` wrapped → logs + returns bool instead of crashing the voice session |
+| Area | Implementation |
+|------|----------------|
+| Memory store | `lib/graph/memory.ts` → `extractAndStoreMemories()`: Sarvam-30B extracts ≤3 durable facts per turn (`contentOnly`, JSON), `embedTexts()` (batched), MERGE deduped `Memory { clerkId, normText }` linked `(Teacher)-[:HAS_MEMORY]->(Memory)` |
+| Memory recall | `recallMemories()` → vector search `memory_embedding` (1536-d cosine), over-fetch then filter by `clerkId`; `formatMemoriesForPrompt()` |
+| Chat wiring | `app/api/chat/completions+api.ts` — recall **awaited** before prompt (via `buildChatSystemContent(snapshot, memoryBlock)`), extract **fire-and-forget** after reply (best-effort, `RAG_DEBUG` logs failures) |
+| Schema | `Memory`/`Claim`/`SyllabusDoc` constraints + composite `(clerkId, normText)` uniqueness; `memory_embedding` vector index; `memory_clerk` / `curriculum_book_board` / `syllabus_doc_lookup` indexes; board fields on `CurriculumBook` |
+| Roadmap nodes (declared, not yet implemented) | `Claim`, `SyllabusDoc`, `(Session)-[:HAS_CLAIM]->(Claim)-[:CHECKED_AGAINST]->(Chunk)` — land in Phase 3 (Reality Check) |
+| Verification | `npm run memory:test` (live store+recall+cleanup), `npm run neo4j:test`, `verify:neo4j`, lint, tsc — all pass |
 
-**Audit "do-not-touch" notes for future agents:** `health/neo4j` is intentionally unauthenticated (demo connectivity); `transcript-batch` is protected by `VOICE_WEBHOOK_HEADER` not Clerk; nulled `callbacks?.` calls in the WS transport are safe no-ops (not bugs).
+**Notes for future agents:** AI SDK deps (`ai` / `@ai-sdk/google` / `@openrouter/ai-sdk-provider`) were intentionally **removed** until Phase 2 wires `streamText` + tools (don't ship unused deps — AGENTS.md). Memory facts are stored in English even when chat is multilingual (extractor normalizes). Next: **Phase 3 Reality Check** (schema already primed), then Phase 2 agentic tools, then Phase 4 live curriculum.
 
 ### Prior state (Phase 14 — still current)
 
@@ -229,7 +229,15 @@ hooks/use-recorder.ts         — clear classNotes on new recording
 
 ## 6. Commit Log (oldest → newest)
 
-### *(pending commit)* — chore: code-quality hardening pass (audit-driven reliability fixes)
+### *(pending commit)* — feat: graph-native long-term teacher memory for Chat Acharya (Phase 16)
+
+- `lib/graph/memory.ts`: store/recall `Memory` nodes via `memory_embedding` vector index; inject recalled facts into chat system prompt; extract durable facts after each turn (best-effort, off response path)
+- Schema: `Memory`/`Claim`/`SyllabusDoc` constraints (incl. composite `(clerkId, normText)`), `memory_embedding` index, board fields + lookup indexes; applied to Aura
+- `scripts/test-memory.mjs` + `npm run memory:test`; `neo4j/graph-model.md` updated
+- AI SDK deps removed from this commit (return in Phase 2 when `streamText` lands)
+- lint + tsc + memory:test + neo4j:test all pass
+
+### `c7c8dde` — chore: code-quality hardening pass (audit-driven reliability fixes)
 
 - Deep manual quality/security audit: verdict = high-quality codebase, no critical defects
 - 6 fixes: voice audio-playback catch, openrouter `reader.cancel`, recorder analyze offline guard, chat scroll-jump dep, `hitSlop` touch targets, Python transcript webhook resilience
@@ -322,4 +330,4 @@ npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
 
 ---
 
-*Last updated: 2026-06-13 — Phase 15 code-quality hardening pass: 6 audit-driven reliability fixes; lint/tsc clean; no feature change. Phase 14 recorder (Sarvam-30B) still current.*
+*Last updated: 2026-06-13 — Phase 16 graph-native long-term agent memory: Chat Acharya stateful/personalized via `memory_embedding`; schema extended for the agentic/truth-seeking roadmap. Next: Phase 3 Reality Check. lint/tsc/memory:test/neo4j:test all pass.*

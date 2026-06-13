@@ -26,8 +26,12 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `CommunityComment` | `commentId` | Comment on a community post |
 | `CommunityGroup` | `groupId` | Teacher group with unique `joinCode` |
 | `GroupMessage` | `messageId` | Message in a teacher group chat |
+| `Memory` | `memoryId` | Long-term agent memory fact about a teacher (+ `embedding` for recall) |
+| `Claim` | `claimId` | A factual teaching claim extracted from a session transcript (`verdict`, `confidence`) |
+| `SyllabusDoc` | `syllabusDocId` | Cached live board syllabus (CBSE/ICSE/NCERT) with TTL |
 
 `Teacher` also caches `displayName` and `avatarLetter` (Clerk profile projection, not auth).
+`CurriculumBook` carries `board` (`ncert` default, `cbse`, `icse`), optional `version`, `sourceUrl`, `lastSyncedAt`.
 
 ## Relationships (feature-driving)
 
@@ -54,6 +58,9 @@ The Clerk user ID (`clerkId`) is used **only as a foreign key** on graph nodes s
 | `(CommunityPost)-[:HAS_COMMENT]->(CommunityComment)` | Post comment thread |
 | `(CommunityPost)-[:HAS_IMAGE]->(CommunityPostImage)` | Post image attachments |
 | `(CommunityGroup)-[:HAS_MESSAGE]->(GroupMessage)` | Group chat messages |
+| `(Teacher)-[:HAS_MEMORY]->(Memory)` | Graph-native long-term agent memory (mem0-style), recalled per turn |
+| `(Session)-[:HAS_CLAIM]->(Claim)` | Reality Check — claims extracted from a class transcript |
+| `(Claim)-[:CHECKED_AGAINST { score }]->(Chunk)` | Truth verification — evidence chunk for each claim verdict |
 
 ## Example queries (live Aura — not mocks)
 
@@ -101,7 +108,27 @@ Applied to Aura (idempotent `IF NOT EXISTS`):
 
 - **15 uniqueness constraints** — prior labels plus `CommunityPost`, `CommunityComment`, `CommunityGroup`, `GroupMessage`
 - **Lookup indexes** — session dates, `Chunk.source`, `CurriculumBook` class/subject + `isPreloaded`, `VerificationReport.mode`, chat message timestamps
-- **Vector index** — `chunk_embedding` on `Chunk.embedding` (1536 dimensions, cosine — matches `openai/text-embedding-3-small`)
+- **Vector indexes** — `chunk_embedding` on `Chunk.embedding` and `memory_embedding` on `Memory.embedding` (both 1536-d cosine — match `openai/text-embedding-3-small`)
+- **Agent memory + truth-check** — `Memory`, `Claim`, `SyllabusDoc` uniqueness constraints; `memory_clerk`, `curriculum_book_board`, `syllabus_doc_lookup` indexes
+
+**Agent memory recall (vector + graph filter):**
+
+```cypher
+CALL db.index.vector.queryNodes('memory_embedding', $topK, $queryEmbedding)
+YIELD node AS m, score
+WHERE m.clerkId = $clerkId
+RETURN m.text, m.kind, score
+ORDER BY score DESC
+```
+
+**Reality Check — contradicted claims with evidence:**
+
+```cypher
+MATCH (s:Session { sessionId: $sessionId })-[:HAS_CLAIM]->(c:Claim)-[r:CHECKED_AGAINST]->(chunk:Chunk)
+WHERE c.verdict = 'contradicted'
+RETURN c.text, c.confidence, chunk.text AS evidence, r.score
+ORDER BY c.confidence DESC
+```
 
 ## Apply schema
 

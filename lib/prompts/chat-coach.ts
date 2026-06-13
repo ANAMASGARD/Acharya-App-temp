@@ -59,12 +59,15 @@ Bad formatting (never do this):
 "* **Lesson Planning:** Preparing a topic..."
 "Yahan teen kadam hain" when Hindi in Devanagari was requested`;
 
-export function buildChatSystemContent(contextSnapshot: string): string {
-  const trimmed = contextSnapshot.trim();
+export function buildChatSystemContent(
+  contextSnapshot: string,
+  memoryBlock = "",
+): string {
+  const sections = [
+    CHAT_COACH_SYSTEM_PROMPT,
+    contextSnapshot.trim(),
+    memoryBlock.trim(),
+  ].filter((section) => section.length > 0);
 
-  if (!trimmed) {
-    return CHAT_COACH_SYSTEM_PROMPT;
-  }
-
-  return `${CHAT_COACH_SYSTEM_PROMPT}\n\n${trimmed}`;
+  return sections.join("\n\n");
 }
