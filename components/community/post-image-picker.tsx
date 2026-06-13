@@ -119,7 +119,7 @@ export function PostImagePicker({
               />
               <Pressable
                 accessibilityLabel={`Remove ${image.name}`}
-                hitSlop={8}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 onPress={() => onRemoveImage(image.uri)}
                 style={styles.removeButton}
               >

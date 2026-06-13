@@ -64,7 +64,7 @@ export function UploadDropZone({
               </View>
               <Pressable
                 accessibilityLabel="Remove selected file"
-                hitSlop={8}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 onPress={onClearFile}
                 style={styles.clearButton}
               >
@@ -92,7 +92,7 @@ export function UploadDropZone({
               </Pressable>
               <Pressable
                 accessibilityLabel="Remove selected file"
-                hitSlop={8}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 onPress={onClearFile}
                 style={styles.clearButton}
               >

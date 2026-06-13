@@ -1,6 +1,9 @@
+import logging
 import os
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 VOICE_WEBHOOK_HEADER = "x-voice-agent-secret"
 
@@ -11,30 +14,40 @@ async def upload_transcript_batch(
     conversation_id: str,
     clerk_id: str,
     messages: list[dict[str, str]],
-) -> None:
+) -> bool:
+    """Best-effort transcript sync. Returns True on success, False on failure.
+
+    A failed upload must not crash the voice session, so transport/HTTP errors
+    are logged and swallowed rather than raised.
+    """
     if not messages:
-        return
+        return True
 
     api_base = os.environ.get("ACHARYA_API_BASE_URL", "").rstrip("/")
     webhook_secret = os.environ.get("VOICE_AGENT_WEBHOOK_SECRET", "")
 
     if not api_base or not webhook_secret:
-        return
+        return False
 
     url = f"{api_base}/api/voice/transcript-batch"
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            url,
-            headers={
-                VOICE_WEBHOOK_HEADER: webhook_secret,
-                "Content-Type": "application/json",
-            },
-            json={
-                "voiceSessionId": voice_session_id,
-                "conversationId": conversation_id,
-                "clerkId": clerk_id,
-                "messages": messages,
-            },
-        )
-        response.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                url,
+                headers={
+                    VOICE_WEBHOOK_HEADER: webhook_secret,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "voiceSessionId": voice_session_id,
+                    "conversationId": conversation_id,
+                    "clerkId": clerk_id,
+                    "messages": messages,
+                },
+            )
+            response.raise_for_status()
+        return True
+    except httpx.HTTPError as error:
+        logger.error("Transcript batch upload failed for %s: %s", voice_session_id, error)
+        return False

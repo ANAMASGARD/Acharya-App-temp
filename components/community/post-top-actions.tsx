@@ -16,7 +16,7 @@ export function PostTopActions({
     <Pressable
       accessibilityLabel={viewerSaved ? "Unsave post" : "Save post"}
       accessibilityRole="button"
-      hitSlop={8}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       onPress={onToggleSave}
       style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
     >

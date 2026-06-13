@@ -391,7 +391,19 @@ export function useRecorder(): UseRecorderResult {
       chunkCount: state.chunks.length,
     };
 
-    const response: AnalyzeResponse = await apiAnalyzeTranscript(token, payload);
+    let response: AnalyzeResponse;
+
+    try {
+      response = await apiAnalyzeTranscript(token, payload);
+    } catch (error) {
+      // A network-level failure (offline / DNS) rejects fetch before a
+      // structured error can be returned — don't leave status stuck on "analyzing".
+      store.setAnalysisError(
+        error instanceof Error ? error.message : "Could not analyze the class. Try again.",
+      );
+      store.setStatus("ready");
+      return;
+    }
 
     if ("error" in response) {
       store.setAnalysisError(response.error.message);

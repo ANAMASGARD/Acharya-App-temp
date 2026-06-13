@@ -28,7 +28,10 @@ export function ChatMessageList({
 
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
-  }, [messages, isLoadingHistory, isStreaming, composerInset]);
+    // composerInset is intentionally excluded: KeyboardAwareScrollView's
+    // bottomOffset already keeps the latest message visible when the keyboard
+    // opens, so scrolling on inset changes only causes a double-scroll jump.
+  }, [messages, isLoadingHistory, isStreaming]);
 
   if (isLoadingHistory) {
     return <ChatLoadingIndicator layout="centered" />;

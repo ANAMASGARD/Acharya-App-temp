@@ -385,48 +385,53 @@ export async function streamChatCompletion(input: {
   let buffer = "";
   let fullText = "";
 
-  while (true) {
-    if (input.signal?.aborted) {
-      throw new DOMException("Chat stream aborted", "AbortError");
-    }
-
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
-    }
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      if (!trimmed.startsWith("data:")) {
-        continue;
+  try {
+    while (true) {
+      if (input.signal?.aborted) {
+        throw new DOMException("Chat stream aborted", "AbortError");
       }
 
-      const data = trimmed.replace(/^data:\s*/, "");
+      const { done, value } = await reader.read();
 
-      if (data === "[DONE]") {
-        continue;
+      if (done) {
+        break;
       }
 
-      try {
-        const parsed = JSON.parse(data) as {
-          choices?: { delta?: { content?: string } }[];
-        };
-        const delta = parsed.choices?.[0]?.delta?.content;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
 
-        if (typeof delta === "string" && delta.length > 0) {
-          fullText += delta;
-          input.onDelta(delta);
+      for (const line of lines) {
+        const trimmed = line.trim();
+
+        if (!trimmed.startsWith("data:")) {
+          continue;
         }
-      } catch {
-        // ignore malformed SSE chunks
+
+        const data = trimmed.replace(/^data:\s*/, "");
+
+        if (data === "[DONE]") {
+          continue;
+        }
+
+        try {
+          const parsed = JSON.parse(data) as {
+            choices?: { delta?: { content?: string } }[];
+          };
+          const delta = parsed.choices?.[0]?.delta?.content;
+
+          if (typeof delta === "string" && delta.length > 0) {
+            fullText += delta;
+            input.onDelta(delta);
+          }
+        } catch {
+          // ignore malformed SSE chunks
+        }
       }
     }
+  } finally {
+    // Release the underlying HTTP stream on any exit (abort, error, or done).
+    await reader.cancel().catch(() => undefined);
   }
 
   if (input.signal?.aborted) {

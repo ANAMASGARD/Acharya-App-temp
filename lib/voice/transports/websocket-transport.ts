@@ -223,7 +223,13 @@ export function createWebSocketTransport(
           }
 
           if (message.type === "audio") {
-            void playAudioBase64(message.data, message.mimeType);
+            playAudioBase64(message.data, message.mimeType).catch(() => {
+              // Playback failed (file write / player error): reset phase so the
+              // session does not get stuck showing "speaking" forever.
+              isSpeaking = false;
+              callbacks?.onError("Could not play the coach's reply.");
+              callbacks?.onPhase("listening");
+            });
           }
         };
 

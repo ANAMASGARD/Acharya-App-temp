@@ -165,7 +165,7 @@ export function NotesUploadScreen(): React.ReactElement {
           </Text>
           <Pressable
             accessibilityLabel="Clear curriculum selection"
-            hitSlop={8}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             onPress={() => {
               clearSelection();
               setSelectedBookIds([]);

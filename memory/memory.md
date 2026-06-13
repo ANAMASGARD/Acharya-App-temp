@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 14 — Recorder Sarvam-30B analysis** ✅ reflection + class notes on native Sarvam LLM |
-| **Previous phases** | Phase 13 voice agent, Phase 12 glass tab bar (`6b6c374`), Phase 11 tab preload (`f12d5fd`) |
+| **Phase** | **Phase 15 — Code-quality hardening pass** ✅ reliability fixes across voice/chat/recorder (no feature change) |
+| **Previous phases** | Phase 14 recorder Sarvam-30B (`ce522f9`), Phase 13 voice agent, Phase 12 glass tab bar (`6b6c374`) |
 | **Branch** | `main` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat (text + **voice**), notes, Home + community |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
@@ -180,7 +180,24 @@ store/chat-store.ts                     — messages + voice transcript append +
 
 ## 5. Current State
 
-> **Status:** Phase 14 recorder analysis on **Sarvam-30B** (reflection + class notes). Phase 13 voice agent still working on Expo Go with `voice-local`.
+> **Status:** Phase 15 — code-quality hardening pass (no feature change). Deep manual audit found a **high-quality codebase** (strict TS, 0 `any`, parameterized Cypher, centralized `requireAuth`, clean client/server boundary). Applied 6 reliability/polish fixes; lint + tsc clean.
+
+### Phase 15 hardening fixes (audit-driven, no behavior change beyond reliability)
+
+| Fix | File | What |
+|-----|------|------|
+| Audio playback no longer hangs | `lib/voice/transports/websocket-transport.ts` | fire-and-forget `playAudioBase64` now `.catch()`es → resets phase to `listening` + surfaces error instead of stuck on `speaking` |
+| Stream reader released | `lib/openrouter.ts` | chat stream read loop wrapped in `try/finally` with `reader.cancel()` on abort/error |
+| Analyze offline guard | `hooks/use-recorder.ts` | `apiAnalyzeTranscript` wrapped in try/catch — network reject no longer leaves status stuck on `analyzing` |
+| Scroll jump | `components/chat/chat-message-list.tsx` | removed redundant `composerInset` from scroll-to-end deps (KeyboardAwareScrollView handles keyboard) |
+| Touch targets | `post-image-picker`, `post-top-actions`, `notes-upload-screen`, `upload-drop-zone` | `hitSlop={8}` → 12px box on small icon buttons |
+| Transcript webhook resilience | `services/voice-{local,livekit}/.../transcript.py` | `raise_for_status` wrapped → logs + returns bool instead of crashing the voice session |
+
+**Audit "do-not-touch" notes for future agents:** `health/neo4j` is intentionally unauthenticated (demo connectivity); `transcript-batch` is protected by `VOICE_WEBHOOK_HEADER` not Clerk; nulled `callbacks?.` calls in the WS transport are safe no-ops (not bugs).
+
+### Prior state (Phase 14 — still current)
+
+> Phase 14 recorder analysis on **Sarvam-30B** (reflection + class notes). Phase 13 voice agent working on Expo Go with `voice-local`.
 
 | Topic | Implementation |
 |-------|----------------|
@@ -211,6 +228,14 @@ hooks/use-recorder.ts         — clear classNotes on new recording
 ---
 
 ## 6. Commit Log (oldest → newest)
+
+### *(pending commit)* — chore: code-quality hardening pass (audit-driven reliability fixes)
+
+- Deep manual quality/security audit: verdict = high-quality codebase, no critical defects
+- 6 fixes: voice audio-playback catch, openrouter `reader.cancel`, recorder analyze offline guard, chat scroll-jump dep, `hitSlop` touch targets, Python transcript webhook resilience
+- lint + tsc clean; Python `py_compile` clean; no feature/behavior change
+
+
 
 ### `0f5f7da` — feat: add swipeable bottom tabs and live-only chat history drawer
 
@@ -297,4 +322,4 @@ npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
 
 ---
 
-*Last updated: 2026-06-09 — Phase 14 recorder uses Sarvam-30B for reflection + class notes; Saaras v3 auto STT; lint/tsc/Neo4j verification all pass.*
+*Last updated: 2026-06-13 — Phase 15 code-quality hardening pass: 6 audit-driven reliability fixes; lint/tsc clean; no feature change. Phase 14 recorder (Sarvam-30B) still current.*
