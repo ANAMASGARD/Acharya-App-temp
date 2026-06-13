@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 17 — Question-paper weightage verification** ✅ upload a paper → per-chapter weightage vs even-split target + out-of-syllabus + balance score (graph-powered) |
-| **Previous phases** | Phase 16 graph-native memory (`0ff7835`), Phase 15 code-quality hardening (`c7c8dde`), Phase 14 recorder Sarvam-30B (`ce522f9`) |
+| **Phase** | **Phase 18 — Agentic tool-calling chat + web search** ✅ Chat Acharya is a multi-step agent (curriculum, memory, history, live web search + page reading) |
+| **Previous phases** | Phase 17 weightage verify (`e7a8bff`), Phase 16 graph-native memory (`0ff7835`), Phase 15 hardening (`c7c8dde`) |
 | **Branch** | `main` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat (text + **voice**), notes, Home + community |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
@@ -180,26 +180,32 @@ store/chat-store.ts                     — messages + voice transcript append +
 
 ## 5. Current State
 
-> **Status:** Phase 17 — question-paper **weightage verification**. Teachers upload a paper and, on top of the existing alignment score / chapter coverage / gap cards, get a per-chapter **weightage balance** (actual marks % vs an even-split target), out-of-syllabus detection, an overall balance score, and a graph-powered content-depth insight. NotebookLM can generate a paper but cannot verify one — this is the differentiator.
+> **Status:** Phase 18 — Chat Acharya is an **agentic tool-calling chat** (Vercel AI SDK `streamText`, up to 5 steps) that can search the NCERT curriculum, recall teacher memory + history, and use **live web search + page reading** to fetch current/official info (latest CBSE/ICSE syllabus, circulars). Runs server-side; the RN client + NDJSON contract are unchanged.
 
-### Phase 17 — what shipped (question-paper weightage)
+### Phase 18 — what shipped (agentic chat + web search)
 
 | Area | Implementation |
 |------|----------------|
-| Expected target | **Even split** across in-scope chapters (teacher's "5 chapters → 20% each" model) + a graph-powered content-depth note (heaviest chapter by chunk count) |
-| Graph query | `lib/graph/curriculum.ts` → `getChapterWeights(bookIds, chapterIds?)` — chunk-count per in-scope chapter via `(Chunk)-[:IN_CHAPTER]->(Chapter)-[:PART_OF]->(book)` |
-| LLM attribution | `lib/prompts/question-paper-verify.ts` schema adds `questions:[{marks,chapter}]`; `lib/rag/verify-evaluate.ts` takes `inScopeChapters`, parses defensively |
-| Compute (deterministic, pure) | `lib/rag/weightage.ts` → `computeWeightage()`: per-chapter actual%/delta/status (aligned/over/under/missing), out-of-syllabus marks, `balanceScore` (TV-distance complement), content insight |
-| API | `app/api/notes/verify+api.ts` reads optional `chapterIds`, computes + returns + persists weightage; `saveVerificationReport` stores `weightageJson` |
-| UI (Neo-Brutal) | `weightage-breakdown.tsx` (bars + target marker, OVER/UNDER/MISSING chips, score badge, insight), `chapter-scope-select.tsx` (optional collapsible chapter picker), `notes-upload-screen.tsx` (explainer card, clean 1·2·3·4 steps) |
-| Graceful fallback | If LLM returns no `questions`, weightage omitted → original score/coverage/gaps render unchanged |
-| Verification | `npm run weightage:test` (live `getChapterWeights` + compute math), lint, tsc — all pass; no schema migration needed |
+| Agent runtime | `lib/agent/run-chat-agent.ts` → `streamText({ model, system, messages, tools, stopWhen: stepCountIs(5) })`; forwards text deltas via `onDelta` (same NDJSON contract) |
+| Model provider | `lib/agent/provider.ts` → `createOpenRouter()` with `OPENROUTER_CHATBOX_MODEL` (server-only) |
+| Tools | `lib/agent/tools.ts` (`buildAgentTools({clerkId})`, zod schemas): `searchCurriculum`, `recallTeacherMemory`, `getTeacherHistory`, `readWebPage` (always), `webSearch` (only if a key is set). Each `execute` catches its own errors |
+| Web search | `lib/agent/web-search.ts` → `webSearch` (Tavily → Brave → Serper, whichever key set; `official=true` restricts to cbse.gov.in/ncert.nic.in/cisce.org/education.gov.in) + `readWebPage` (fetch + HTML→text, timeout/size capped) |
+| Curriculum tool | `lib/rag/retrieve.ts` → `searchCurriculumForAgent()` — vector search without requiring bookIds (class/subject optional) |
+| Config | `lib/ai-config.ts` → `getWebSearchConfig()` (provider priority); env keys `TAVILY_API_KEY`/`BRAVE_SEARCH_API_KEY`/`SERPER_API_KEY` (`.env.example` documented) |
+| Prompt | `lib/prompts/chat-coach.ts` → `AGENT_TOOLS_GUIDANCE` (verify "latest"/official facts via web, cite source, keep reply short); appended in the chat route |
+| Route | `app/api/chat/completions+api.ts` swaps `streamChatCompletion` for `runChatAgent`; memory recall (before) + extract (fire-and-forget after) preserved |
+| Deps | re-added `ai` ^6, `@openrouter/ai-sdk-provider` ^2.9, `zod` ^4 — now actually used |
+| Verification | lint + tsc pass; OpenRouter configured so agent runs today; **no web-search key set yet** so `webSearch` is dormant (readWebPage + curriculum + memory + history still work) |
 
-**Notes for future agents:** AI SDK deps (`ai` / `@ai-sdk/google` / `@openrouter/ai-sdk-provider`) were intentionally **removed** in Phase 16 — re-add only when Phase 4 wires `streamText` + tools (don't ship unused deps — AGENTS.md). Roadmap remaining (full detail in plan `~/.claude/plans/your-usp-hackathon-judge-iterative-metcalfe.md`): **Phase 4** agentic tool-calling chat, **Phase 5** recorder Reality Check (truth-seeking; `Claim`/`CHECKED_AGAINST` schema already primed) + live CBSE/ICSE curriculum. Memory facts stored in English even when chat is multilingual.
+**Notes for future agents:** To enable web search, add ONE of `TAVILY_API_KEY` (recommended), `BRAVE_SEARCH_API_KEY`, or `SERPER_API_KEY` to `.env`. Graceful degradation everywhere: missing web key → tool simply not registered; any tool failure returns a string, never aborts the turn. The chat route still buffers the full reply then returns NDJSON (not true client streaming). Roadmap remaining (plan `~/.claude/plans/your-usp-hackathon-judge-iterative-metcalfe.md`): **Phase 5** recorder Reality Check (truth-seeking; `Claim`/`CHECKED_AGAINST` schema already primed) + live CBSE/ICSE curriculum.
+
+### Prior state (Phase 17 — weightage verify, still active)
+
+> `lib/rag/weightage.ts` + `getChapterWeights` — uploaded question paper gets per-chapter weightage (even-split target + out-of-syllabus + balance score + content insight). `npm run weightage:test` passes.
 
 ### Prior state (Phase 16 — graph-native memory, still active)
 
-> `lib/graph/memory.ts` — Chat Acharya recalls durable `Memory` facts (vector `memory_embedding`) and extracts new ones per turn (fire-and-forget). Recall awaited before the prompt; extraction off the response path. `npm run memory:test` passes.
+> `lib/graph/memory.ts` — Chat Acharya recalls durable `Memory` facts (vector `memory_embedding`) and extracts new ones per turn (fire-and-forget). `npm run memory:test` passes.
 
 ### Prior state (Phase 14 — still current)
 
@@ -235,7 +241,14 @@ hooks/use-recorder.ts         — clear classNotes on new recording
 
 ## 6. Commit Log (oldest → newest)
 
-### *(pending commit)* — feat: question-paper weightage verification (Phase 17)
+### *(pending commit)* — feat: agentic tool-calling chat with live web search (Phase 18)
+
+- `lib/agent/*`: AI SDK `streamText` agent (`stepCountIs(5)`) with tools — searchCurriculum, recallTeacherMemory, getTeacherHistory, readWebPage, webSearch (Tavily/Brave/Serper, whichever key set; official-domain restriction)
+- `app/api/chat/completions+api.ts` swaps single LLM call for `runChatAgent` (same NDJSON contract; memory recall/extract preserved)
+- `lib/rag/retrieve.ts` `searchCurriculumForAgent` (no bookIds); `lib/ai-config.ts` `getWebSearchConfig`; `AGENT_TOOLS_GUIDANCE` prompt; `.env.example` web keys
+- re-added `ai`/`@openrouter/ai-sdk-provider`/`zod` (now used); graceful degradation when no web key; lint + tsc pass
+
+### `e7a8bff` — feat: question-paper weightage verification (Phase 17)
 
 - `lib/rag/weightage.ts` (pure `computeWeightage`): even-split target, per-chapter actual%/status (aligned/over/under/missing), out-of-syllabus marks, balance score, content-depth insight
 - `lib/graph/curriculum.ts` `getChapterWeights` (chunk-count per chapter); verify schema/prompt add `questions:[{marks,chapter}]`; `verify-evaluate` parses + maps
@@ -344,4 +357,4 @@ npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
 
 ---
 
-*Last updated: 2026-06-13 — Phase 17 question-paper weightage verification: even-split target + graph content-depth insight + out-of-syllabus + balance score; optional chapter scope. lint/tsc/weightage:test all pass. Next: Phase 4 agentic chat, Phase 5 Reality Check + live curriculum.*
+*Last updated: 2026-06-13 — Phase 18 agentic tool-calling chat: AI SDK streamText agent with curriculum/memory/history + live web search (Tavily/Brave/Serper) & page reading; server-side, NDJSON contract unchanged. lint/tsc pass. Next: Phase 5 Reality Check + live curriculum.*

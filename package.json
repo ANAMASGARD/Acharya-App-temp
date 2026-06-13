@@ -35,12 +35,14 @@
     "@livekit/react-native": "^2.11.0",
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^144.1.0",
+    "@openrouter/ai-sdk-provider": "^2.9.1",
     "@openrouter/sdk": "^0.12.79",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.17.0",
     "@react-navigation/elements": "^2.9.20",
     "@react-navigation/material-top-tabs": "^7.5.0",
     "@react-navigation/native": "^7.2.6",
+    "ai": "^6.0.204",
     "expo": "~54.0.34",
     "expo-audio": "~1.1.1",
     "expo-auth-session": "~7.0.11",
@@ -83,6 +85,7 @@
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1",
     "sarvamai": "^1.1.7",
+    "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

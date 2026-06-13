@@ -1,6 +1,7 @@
 import { isRagDebugEnabled } from "@/lib/ai-config";
 import { requireAuth } from "@/lib/api-auth";
-import { buildChatSystemContent } from "@/lib/prompts/chat-coach";
+import { runChatAgent } from "@/lib/agent/run-chat-agent";
+import { AGENT_TOOLS_GUIDANCE, buildChatSystemContent } from "@/lib/prompts/chat-coach";
 import {
   appendMessage,
   getOrCreateConversation,
@@ -11,11 +12,8 @@ import {
   formatMemoriesForPrompt,
   recallMemories,
 } from "@/lib/graph/memory";
-import {
-  getOpenRouterMappedError,
-  streamChatCompletion,
-  type OpenRouterChatMessage,
-} from "@/lib/openrouter";
+import { getOpenRouterMappedError } from "@/lib/openrouter";
+import type { ModelMessage } from "ai";
 
 type CompletionsBody = Readonly<{
   conversationId?: string;
@@ -61,21 +59,17 @@ export async function POST(request: Request): Promise<Response> {
       return [];
     });
 
-    const openRouterMessages: OpenRouterChatMessage[] = [
-      {
-        role: "system",
-        content: buildChatSystemContent(
-          conversation.contextSnapshot,
-          formatMemoriesForPrompt(memories),
-        ),
-      },
-      ...history
-        .filter((entry) => entry.role === "user" || entry.role === "assistant")
-        .map((entry) => ({
-          role: entry.role as "user" | "assistant",
-          content: entry.content,
-        })),
-    ];
+    const systemContent = `${buildChatSystemContent(
+      conversation.contextSnapshot,
+      formatMemoriesForPrompt(memories),
+    )}\n\n${AGENT_TOOLS_GUIDANCE}`;
+
+    const agentMessages: ModelMessage[] = history
+      .filter((entry) => entry.role === "user" || entry.role === "assistant")
+      .map((entry) => ({
+        role: entry.role as "user" | "assistant",
+        content: entry.content,
+      }));
 
     const upstreamAbort = new AbortController();
 
@@ -95,8 +89,10 @@ export async function POST(request: Request): Promise<Response> {
     let accumulated = "";
 
     try {
-      accumulated = await streamChatCompletion({
-        messages: openRouterMessages,
+      accumulated = await runChatAgent({
+        system: systemContent,
+        messages: agentMessages,
+        clerkId: userId,
         onDelta: (chunk) => {
           ndjsonLines.push(JSON.stringify({ type: "delta", content: chunk }));
         },

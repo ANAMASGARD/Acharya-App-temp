@@ -22,6 +22,10 @@ export const AI_ENV = {
   SARVAM_TTS_MODEL: "SARVAM_TTS_MODEL",
   NOTES_MAX_UPLOAD_BYTES: "NOTES_MAX_UPLOAD_BYTES",
   RAG_DEBUG: "RAG_DEBUG",
+  /** Web search for the chat agent — set whichever provider you have */
+  TAVILY_API_KEY: "TAVILY_API_KEY",
+  BRAVE_SEARCH_API_KEY: "BRAVE_SEARCH_API_KEY",
+  SERPER_API_KEY: "SERPER_API_KEY",
 } as const;
 
 export type OpenRouterConfig = Readonly<{
@@ -175,6 +179,37 @@ export function getNotesMaxUploadBytes(): number {
 export function isRagDebugEnabled(): boolean {
   const raw = readEnv(AI_ENV.RAG_DEBUG);
   return raw === "true" || raw === "1";
+}
+
+export type WebSearchProvider = "tavily" | "brave" | "serper";
+
+export type WebSearchConfig = Readonly<{
+  provider: WebSearchProvider;
+  apiKey: string;
+}>;
+
+/**
+ * Resolve the first configured web-search provider for the chat agent.
+ * Priority: Tavily (agent-optimized) -> Brave -> Serper. Returns null when no
+ * key is set, so the web tools degrade gracefully instead of throwing.
+ */
+export function getWebSearchConfig(): WebSearchConfig | null {
+  const tavily = readEnv(AI_ENV.TAVILY_API_KEY);
+  if (tavily) {
+    return { provider: "tavily", apiKey: tavily };
+  }
+
+  const brave = readEnv(AI_ENV.BRAVE_SEARCH_API_KEY);
+  if (brave) {
+    return { provider: "brave", apiKey: brave };
+  }
+
+  const serper = readEnv(AI_ENV.SERPER_API_KEY);
+  if (serper) {
+    return { provider: "serper", apiKey: serper };
+  }
+
+  return null;
 }
 
 /**

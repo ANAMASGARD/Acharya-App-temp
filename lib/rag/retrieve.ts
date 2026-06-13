@@ -1,5 +1,6 @@
 import { runReadQuery } from "@/lib/neo4j";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
+import { embedText } from "@/lib/rag/embeddings";
 import type { RetrievalDebugMatch } from "@/types/question-paper";
 
 export type RetrievedChunk = Readonly<{
@@ -135,6 +136,73 @@ export async function hybridRetrieveCurriculumChunks(input: {
     matches: ranked.slice(0, limit),
     debug,
   };
+}
+
+export type AgentCurriculumMatch = Readonly<{
+  text: string;
+  chapterTitle: string;
+  bookTitle: string;
+  classLevel: string;
+  subject: string;
+  score: number;
+}>;
+
+/**
+ * Relaxed curriculum search for the chat agent: embeds a free-text query and
+ * runs vector search over all curriculum chunks, optionally narrowing by class
+ * and/or subject. Unlike hybridRetrieveCurriculumChunks it does not require a
+ * preselected set of bookIds, so the agent can ground answers on its own.
+ */
+export async function searchCurriculumForAgent(input: {
+  query: string;
+  classLevel?: string;
+  subject?: string;
+  limit?: number;
+}): Promise<AgentCurriculumMatch[]> {
+  const query = input.query.trim();
+
+  if (!query) {
+    return [];
+  }
+
+  const limit = input.limit ?? 6;
+  const embedding = await embedText(query);
+
+  const rows = await runReadQuery<RawRow>(
+    `
+    CALL db.index.vector.queryNodes($indexName, $topK, $embedding)
+    YIELD node AS chunk, score
+    MATCH (chunk)-[:IN_CHAPTER]->(ch:Chapter)-[:PART_OF]->(book:CurriculumBook)
+    WHERE ($classLevel IS NULL OR book.classLevel = $classLevel)
+      AND ($subject IS NULL OR toLower(book.subject) = toLower($subject))
+    RETURN chunk { .* } AS chunk, ch { .* } AS chapter, book { .* } AS book, score
+    ORDER BY score DESC
+    LIMIT $limit
+  `,
+    {
+      indexName: VECTOR_INDEX,
+      topK: limit * ANN_MULTIPLIER,
+      embedding,
+      classLevel: input.classLevel ?? null,
+      subject: input.subject ?? null,
+      limit,
+    },
+  );
+
+  return rows.map((row) => {
+    const chunk = serializeNeo4jValue(row.chunk) as Record<string, unknown>;
+    const chapter = serializeNeo4jValue(row.chapter) as Record<string, unknown>;
+    const book = serializeNeo4jValue(row.book) as Record<string, unknown>;
+
+    return {
+      text: String(chunk.text ?? ""),
+      chapterTitle: String(chapter.title ?? chapter.chapterId ?? ""),
+      bookTitle: String(book.title ?? book.bookId ?? ""),
+      classLevel: String(book.classLevel ?? ""),
+      subject: String(book.subject ?? ""),
+      score: typeof row.score === "number" ? row.score : 0,
+    };
+  });
 }
 
 export async function sampleCurriculumChunksForGeneration(input: {

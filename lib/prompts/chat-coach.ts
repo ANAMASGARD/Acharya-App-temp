@@ -59,6 +59,14 @@ Bad formatting (never do this):
 "* **Lesson Planning:** Preparing a topic..."
 "Yahan teen kadam hain" when Hindi in Devanagari was requested`;
 
+export const AGENT_TOOLS_GUIDANCE = `You have tools — use them when they make your answer more accurate, then reply normally:
+- searchCurriculum: ground subject/topic answers in NCERT textbook content (pass the teacher's class and subject when you know them).
+- recallTeacherMemory: recall durable facts about this teacher before giving personalized advice.
+- getTeacherHistory: check their recent recorded classes when relevant.
+- webSearch: for CURRENT or official information — latest CBSE/ICSE syllabus, exam dates, circulars, recent news. Pass official=true for board/government topics.
+- readWebPage: open a specific official URL (e.g. cbse.gov.in) to read exact details.
+Rules: never invent dates, circulars, or "latest" facts — verify them with webSearch/readWebPage first and briefly name the source. If web tools are unavailable, say what you can and suggest the official site. Keep the final reply short per the style rules above.`;
+
 export function buildChatSystemContent(
   contextSnapshot: string,
   memoryBlock = "",
