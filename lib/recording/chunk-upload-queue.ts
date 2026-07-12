@@ -14,6 +14,8 @@ export type QueueChunk = Readonly<{
   index: number;
   localUri: string;
   languageCode?: string;
+  attempt?: number;
+  nextAttemptAt?: number | null;
 }>;
 
 export type QueueCallbacks = Readonly<{
@@ -48,6 +50,8 @@ export class ChunkUploadQueue {
         index: item.index,
         localUri: item.uri,
         languageCode: STT_AUTO_DETECT,
+        attempt: item.attempt ?? 0,
+        nextAttemptAt: item.nextAttemptAt ?? null,
       });
     }
 
@@ -79,6 +83,15 @@ export class ChunkUploadQueue {
     this.processing = true;
 
     while (this.pending.length > 0) {
+      const next = this.pending[0];
+
+      if (next?.nextAttemptAt && next.nextAttemptAt > Date.now()) {
+        this.processing = false;
+        await this.persist();
+        setTimeout(() => void this.pump(), next.nextAttemptAt - Date.now());
+        return;
+      }
+
       const chunk = this.pending.shift();
 
       if (!chunk) {
@@ -99,7 +112,7 @@ export class ChunkUploadQueue {
     const token = await this.callbacks.getToken();
 
     if (!token) {
-      this.requeue(chunk, "Not authenticated", false);
+      await this.requeue(chunk, "Not authenticated", false);
       return;
     }
 
@@ -132,26 +145,23 @@ export class ChunkUploadQueue {
       await this.deleteLocalFileIfAcked(chunk.localUri);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
-      this.requeue(chunk, message, false);
+      await this.requeue(chunk, message, false);
     }
   }
 
-  private requeue(chunk: QueueChunk, message: string, permanent: boolean): void {
-    const attempts = (this.retryCounts.get(chunk.index) ?? 0) + 1;
+  private async requeue(chunk: QueueChunk, message: string, permanent: boolean): Promise<void> {
+    const attempts = Math.max(this.retryCounts.get(chunk.index) ?? 0, chunk.attempt ?? 0) + 1;
     this.retryCounts.set(chunk.index, attempts);
 
     if (permanent || attempts > CHUNK_RETRY_DELAYS_MS.length) {
       this.callbacks.onChunkFailed(chunk.index, message, true);
-      void this.deleteLocalFileIfAcked(chunk.localUri);
       return;
     }
 
     const delay = CHUNK_RETRY_DELAYS_MS[attempts - 1] ?? 16000;
 
-    setTimeout(() => {
-      this.pending.push(chunk);
-      void this.pump();
-    }, delay);
+    this.pending.push({ ...chunk, attempt: attempts, nextAttemptAt: Date.now() + delay });
+    await this.persist();
   }
 
   private async deleteLocalFileIfAcked(uri: string): Promise<void> {
@@ -175,6 +185,8 @@ export class ChunkUploadQueue {
       sessionId: chunk.sessionId,
       index: chunk.index,
       uri: chunk.localUri,
+      attempt: chunk.attempt ?? 0,
+      nextAttemptAt: chunk.nextAttemptAt ?? null,
     }));
 
     await savePersistedQueue({ sessionId: this.activeSessionId, items });

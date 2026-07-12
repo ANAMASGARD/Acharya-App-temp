@@ -82,6 +82,7 @@ export async function PATCH(request: Request): Promise<Response> {
     const body = (await request.json()) as {
       sessionId?: string;
       durationSeconds?: number;
+      expectedChunkCount?: number;
     };
 
     if (!body.sessionId?.trim()) {
@@ -95,7 +96,23 @@ export async function PATCH(request: Request): Promise<Response> {
       );
     }
 
-    await updateSessionDuration(userId, body.sessionId, body.durationSeconds);
+    if (
+      typeof body.expectedChunkCount !== "number" ||
+      !Number.isInteger(body.expectedChunkCount) ||
+      body.expectedChunkCount < 0
+    ) {
+      return Response.json(
+        { error: "expectedChunkCount must be a non-negative integer" },
+        { status: 400 },
+      );
+    }
+
+    await updateSessionDuration(
+      userId,
+      body.sessionId,
+      body.durationSeconds,
+      body.expectedChunkCount,
+    );
 
     return Response.json({
       sessionId: body.sessionId,

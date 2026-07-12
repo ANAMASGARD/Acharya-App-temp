@@ -5,6 +5,8 @@ export type PersistedQueueItem = Readonly<{
   sessionId: string;
   index: number;
   uri: string;
+  attempt: number;
+  nextAttemptAt: number | null;
 }>;
 
 export type PersistedQueue = Readonly<{

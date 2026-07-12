@@ -1,23 +1,18 @@
 import { requireAuth } from "@/lib/api-auth";
+import { ttsBodySchema } from "@/lib/api-schemas";
 import { AiConfigError } from "@/lib/ai-config";
 import { synthesizeSpeech } from "@/lib/sarvam";
-
-type TtsBody = Readonly<{
-  text?: string;
-  languageCode?: string;
-  speaker?: string;
-}>;
 
 export async function POST(request: Request): Promise<Response> {
   try {
     await requireAuth(request);
 
-    const body = (await request.json()) as TtsBody;
-    const text = body.text?.trim() ?? "";
-
-    if (!text) {
-      return Response.json({ error: "Text cannot be empty" }, { status: 422 });
+    const parsed = ttsBodySchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return Response.json({ error: "Text must be between 1 and 2500 characters" }, { status: 422 });
     }
+    const body = parsed.data;
+    const text = body.text;
 
     const result = await synthesizeSpeech(text, {
       languageCode: body.languageCode,

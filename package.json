@@ -10,6 +10,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "verify:neo4j": "node scripts/verify-neo4j.mjs",
     "neo4j:apply-schema": "node scripts/apply-neo4j-schema.mjs",
     "neo4j:test": "node scripts/test-neo4j-integration.mjs",
@@ -95,7 +97,8 @@
     "eslint-config-expo": "~10.0.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "^4.1.10"
   },
   "private": true,
   "overrides": {

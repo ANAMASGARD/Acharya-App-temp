@@ -85,66 +85,65 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const ndjsonLines: string[] = [];
-    let accumulated = "";
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const write = (event: { type: string; [key: string]: unknown }): void => {
+          controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+        };
 
-    try {
-      accumulated = await runChatAgent({
-        system: systemContent,
-        messages: agentMessages,
-        clerkId: userId,
-        onDelta: (chunk) => {
-          ndjsonLines.push(JSON.stringify({ type: "delta", content: chunk }));
-        },
-        signal: upstreamAbort.signal,
-      });
+        try {
+          const accumulated = await runChatAgent({
+            system: systemContent,
+            messages: agentMessages,
+            clerkId: userId,
+            onDelta: (chunk) => write({ type: "delta", content: chunk }),
+            signal: upstreamAbort.signal,
+          });
 
-      if (upstreamAbort.signal.aborted) {
-        return new Response("", { status: 499 });
-      }
+          if (upstreamAbort.signal.aborted) {
+            return;
+          }
 
-      const assistantMessage = await appendMessage(
-        userId,
-        conversation.conversationId,
-        "assistant",
-        accumulated,
-      );
+          const assistantMessage = await appendMessage(
+            userId,
+            conversation.conversationId,
+            "assistant",
+            accumulated,
+          );
 
-      // Extract durable memory from this exchange. Best-effort and off the
-      // response path — this runs on a long-lived Node server, so we do not
-      // await it (and swallow failures) to avoid adding latency to the reply.
-      void extractAndStoreMemories({
-        clerkId: userId,
-        conversationId: conversation.conversationId,
-        userMessage: message,
-        assistantMessage: accumulated,
-      }).catch((error) => {
-        if (isRagDebugEnabled()) {
-          console.warn("[memory] extract failed:", error);
+          void extractAndStoreMemories({
+            clerkId: userId,
+            conversationId: conversation.conversationId,
+            userMessage: message,
+            assistantMessage: accumulated,
+          }).catch((error) => {
+            if (isRagDebugEnabled()) {
+              console.warn("[memory] extract failed:", error);
+            }
+          });
+
+          write({
+            type: "done",
+            conversationId: conversation.conversationId,
+            messageId: assistantMessage.messageId,
+            userMessageId: userMessage.messageId,
+          });
+        } catch (error) {
+          if (!isAbortError(error) && !upstreamAbort.signal.aborted) {
+            const mapped = getOpenRouterMappedError(error);
+            write({ type: "error", error: mapped.userMessage });
+          }
+        } finally {
+          controller.close();
         }
-      });
+      },
+    });
 
-      ndjsonLines.push(
-        JSON.stringify({
-          type: "done",
-          conversationId: conversation.conversationId,
-          messageId: assistantMessage.messageId,
-          userMessageId: userMessage.messageId,
-        }),
-      );
-    } catch (error) {
-      if (isAbortError(error) || upstreamAbort.signal.aborted) {
-        return new Response("", { status: 499 });
-      }
-
-      const mapped = getOpenRouterMappedError(error);
-      return Response.json({ error: mapped.userMessage }, { status: mapped.httpStatus });
-    }
-
-    return new Response(`${ndjsonLines.join("\n")}\n`, {
+    return new Response(stream, {
       headers: {
         "Content-Type": "application/x-ndjson",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-cache, no-transform",
       },
     });
   } catch (error) {
