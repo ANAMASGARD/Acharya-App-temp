@@ -1,6 +1,5 @@
 import { runReadQuery, runWriteQuery } from "@/lib/neo4j";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
-import neo4j from "neo4j-driver";
 import type {
   ChatConversation,
   ChatConversationSummary,
@@ -293,7 +292,7 @@ export async function listConversationsForTeacher(
     ORDER BY c.createdAt DESC
     LIMIT $limit
     `,
-    { clerkId, limit: neo4j.int(safeLimit) },
+    { clerkId, limit: safeLimit },
   );
 
   return rows.map((row) => {
@@ -388,7 +387,7 @@ export async function listMessages(
     ORDER BY m.createdAt ASC
     LIMIT $limit
     `,
-    { clerkId, conversationId, limit: neo4j.int(safeLimit) },
+    { clerkId, conversationId, limit: safeLimit },
   );
 
   return rows.map((row) => {

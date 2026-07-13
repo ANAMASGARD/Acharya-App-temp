@@ -1,6 +1,5 @@
 import { runReadQuery, runWriteQuery } from "@/lib/neo4j";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
-import neo4j from "neo4j-driver";
 import type { CreateGroupMessageInput, GroupMessage } from "@/types/community";
 import { upsertTeacherProfile } from "@/lib/graph/community/teacher-profile";
 
@@ -56,7 +55,7 @@ export async function listGroupMessages(
     ORDER BY m.createdAt ASC
     LIMIT $limit
     `,
-    { groupId, limit: neo4j.int(safeLimit) },
+    { groupId, limit: safeLimit },
   );
 
   return rows.map(mapMessageRow);

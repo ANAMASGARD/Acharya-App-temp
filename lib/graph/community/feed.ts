@@ -1,6 +1,5 @@
 import { runReadQuery, runWriteQuery } from "@/lib/neo4j";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
-import neo4j from "neo4j-driver";
 import type {
   CommunityPost,
   CommunityPostImage,
@@ -137,7 +136,7 @@ export async function listCommunityPosts(
     ORDER BY coalesce(p.demoWelcome, false) DESC, p.createdAt DESC
     LIMIT $limit
     `,
-    { clerkId, groupId, limit: neo4j.int(safeLimit) },
+    { clerkId, groupId, limit: safeLimit },
   );
 
   return rows.map((row) => mapPostRow(row, clerkId));
@@ -242,7 +241,7 @@ export async function createCommunityPost(
           imageId: image.imageId,
           mimeType: image.mimeType,
           fileName: image.fileName,
-          sortOrder: neo4j.int(image.sortOrder),
+          sortOrder: image.sortOrder,
         })),
       },
     );

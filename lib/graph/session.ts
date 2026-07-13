@@ -1,5 +1,4 @@
 import { runReadQuery, runWriteQuery } from "@/lib/neo4j";
-import neo4j from "neo4j-driver";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
 import type { SessionDetail } from "@/types/calendar";
 import type { CreateSessionInput, SessionNode } from "@/types/graph";
@@ -64,7 +63,7 @@ export async function listSessionsByTeacher(
     ORDER BY s.recordedAt DESC
     LIMIT $limit
     `,
-    { clerkId, limit: neo4j.int(safeLimit) },
+    { clerkId, limit: safeLimit },
   );
 
   return rows.map((row) => serializeNeo4jValue(row.session) as SessionNode);

@@ -1,6 +1,5 @@
 import { runReadQuery, runWriteQuery } from "@/lib/neo4j";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
-import neo4j from "neo4j-driver";
 import type { CommunityComment, CreateCommentInput } from "@/types/community";
 import { upsertTeacherProfile } from "@/lib/graph/community/teacher-profile";
 
@@ -41,7 +40,7 @@ export async function listPostComments(
     ORDER BY c.createdAt ASC
     LIMIT $limit
     `,
-    { postId, limit: neo4j.int(safeLimit) },
+    { postId, limit: safeLimit },
   );
 
   return rows.map(mapCommentRow);

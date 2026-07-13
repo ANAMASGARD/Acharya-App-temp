@@ -1,7 +1,6 @@
 import { computeTeachingStreak } from "@/lib/dashboard/streak";
 import { toDateKey } from "@/lib/calendar/date-utils";
 import { runReadQuery } from "@/lib/neo4j";
-import neo4j from "neo4j-driver";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
 import type { DashboardActivityItem, DashboardResponse } from "@/types/community";
 
@@ -121,7 +120,7 @@ export async function getTeacherDashboard(
     ORDER BY s.recordedAt DESC
     LIMIT $limit
     `,
-    { clerkId, limit: neo4j.int(safeLimit) },
+    { clerkId, limit: safeLimit },
   );
 
   const verificationRows = await runReadQuery<VerificationActivityRow>(
@@ -135,7 +134,7 @@ export async function getTeacherDashboard(
     ORDER BY v.createdAt DESC
     LIMIT $limit
     `,
-    { clerkId, limit: neo4j.int(safeLimit) },
+    { clerkId, limit: safeLimit },
   );
 
   const sessionActivity: DashboardActivityItem[] = sessionRows.map((row) => ({
