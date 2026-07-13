@@ -10,6 +10,7 @@ export type SessionNode = Readonly<{
   classLevel: string;
   recordedAt: string;
   durationSeconds: number;
+  expectedChunkCount?: number;
   score?: number;
   teacherClerkId: string;
 }>;

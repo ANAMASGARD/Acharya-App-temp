@@ -1,15 +1,8 @@
 import { requireAuth } from "@/lib/api-auth";
+import { hasAllowedAudioSize, recorderSttBodySchema } from "@/lib/api-schemas";
 import { STT_AUTO_DETECT } from "@/lib/recording/constants";
 import { upsertAudioChunk } from "@/lib/graph/recorder";
 import { transcribeAudioBuffer } from "@/lib/sarvam";
-
-type JsonSttBody = Readonly<{
-  sessionId?: string;
-  chunkIndex?: number;
-  languageCode?: string;
-  audioBase64?: string;
-  mimeType?: string;
-}>;
 
 function readFormString(formData: globalThis.FormData, key: string): string | null {
   const value = formData.get(key);
@@ -36,28 +29,19 @@ async function parseAudioRequest(request: Request): Promise<{
   const contentType = request.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
-    const body = (await request.json()) as JsonSttBody;
-
-    if (!body.audioBase64?.trim()) {
-      throw new Error("Missing audioBase64");
+    const parsed = recorderSttBodySchema.safeParse(await request.json());
+    if (!parsed.success) {
+      throw new Error("Invalid audio upload request");
     }
-
-    if (!body.sessionId?.trim()) {
-      throw new Error("sessionId is required");
-    }
-
-    const chunkIndex = Number(body.chunkIndex);
-
-    if (!Number.isInteger(chunkIndex) || chunkIndex < 0) {
-      throw new Error("chunkIndex must be a non-negative integer");
-    }
+    const body = parsed.data;
+    const chunkIndex = body.chunkIndex;
 
     const mimeType = body.mimeType ?? "audio/mp4";
     const extension = mimeType.includes("wav") ? ".wav" : ".m4a";
 
     return {
       buffer: Buffer.from(body.audioBase64, "base64"),
-      sessionId: body.sessionId.trim(),
+      sessionId: body.sessionId,
       chunkIndex,
       languageCode: body.languageCode ?? STT_AUTO_DETECT,
       extension,
@@ -101,8 +85,8 @@ export async function POST(request: Request): Promise<Response> {
     const { buffer, sessionId, chunkIndex, languageCode, extension } =
       await parseAudioRequest(request);
 
-    if (buffer.byteLength === 0) {
-      return Response.json({ error: "Audio file is empty" }, { status: 400 });
+    if (!hasAllowedAudioSize(buffer)) {
+      return Response.json({ error: "Audio file is empty or too large" }, { status: 413 });
     }
 
     const sttResult = await transcribeAudioBuffer(buffer, extension, {

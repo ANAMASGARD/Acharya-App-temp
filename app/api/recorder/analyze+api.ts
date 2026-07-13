@@ -1,37 +1,46 @@
-import { requireAuth } from "@/lib/api-auth";
+import { authErrorResponse, requireAuth } from "@/lib/api-auth";
 import {
   getOpenRouterMappedError,
   analyzeTeachingTranscript,
   generateClassNotes,
 } from "@/lib/openrouter";
-import { saveTranscriptReportAndNotes } from "@/lib/graph/recorder";
+import { getCanonicalTranscript, saveTranscriptReportAndNotes } from "@/lib/graph/recorder";
+import { z } from "zod";
 
 const MIN_TRANSCRIPT_LENGTH = 50;
-
-type AnalyzeBody = Readonly<{
-  sessionId?: string;
-  transcript?: string;
-  topic?: string;
-  subject?: string;
-  classLevel?: string;
-  durationSeconds?: number;
-  isComplete?: boolean;
-  chunkCount?: number;
-}>;
+const analyzeBodySchema = z.object({
+  sessionId: z.string().uuid(),
+  allowPartial: z.boolean().optional().default(false),
+});
 
 export async function POST(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
-    const body = (await request.json()) as AnalyzeBody;
-
-    if (!body.sessionId?.trim()) {
+    const parsed = analyzeBodySchema.safeParse(await request.json());
+    if (!parsed.success) {
       return Response.json(
-        { error: { code: "invalid_request", message: "sessionId is required" } },
+        { error: { code: "invalid_request", message: "A valid sessionId is required." } },
         { status: 400 },
       );
     }
+    const body = parsed.data;
+    const canonical = await getCanonicalTranscript(userId, body.sessionId, body.allowPartial);
 
-    const transcript = body.transcript?.trim() ?? "";
+    if (!canonical) {
+      return Response.json(
+        { error: { code: "not_found", message: "Session not found." } },
+        { status: 404 },
+      );
+    }
+
+    if (!canonical.isComplete && !body.allowPartial) {
+      return Response.json(
+        { error: { code: "transcript_processing", message: "Transcription is still finishing." } },
+        { status: 409 },
+      );
+    }
+
+    const transcript = canonical.text.trim();
 
     if (!transcript) {
       return Response.json(
@@ -57,16 +66,11 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const chunkCount =
-      typeof body.chunkCount === "number" && body.chunkCount > 0
-        ? Math.floor(body.chunkCount)
-        : 1;
-
     const analysisInput = {
       transcript,
-      subject: body.subject ?? "",
-      topic: body.topic ?? "",
-      classLevel: body.classLevel ?? "",
+      subject: canonical.subject,
+      topic: canonical.topic,
+      classLevel: canonical.classLevel,
     };
 
     const report = await analyzeTeachingTranscript(analysisInput);
@@ -76,14 +80,17 @@ export async function POST(request: Request): Promise<Response> {
       userId,
       body.sessionId,
       transcript,
-      body.isComplete ?? true,
-      chunkCount,
+      canonical.isComplete,
+      canonical.chunkCount,
       report,
       classNotes,
     );
 
     return Response.json({ report, classNotes });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiAuthError") {
+      return authErrorResponse(error);
+    }
     const mapped = getOpenRouterMappedError(error);
 
     if (mapped.code === "auth_config") {

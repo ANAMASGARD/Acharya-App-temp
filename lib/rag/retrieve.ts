@@ -63,24 +63,27 @@ export async function hybridRetrieveCurriculumChunks(input: {
   limit?: number;
 }): Promise<{ matches: RetrievedChunk[]; debug: RetrievalDebugMatch[] }> {
   const limit = input.limit ?? 12;
-  const annK = limit * ANN_MULTIPLIER;
-
   const rows = await runReadQuery<RawRow>(
     `
-    CALL db.index.vector.queryNodes($indexName, $topK, $embedding)
-    YIELD node AS chunk, score
-    OPTIONAL MATCH (chunk)-[:IN_CHAPTER]->(ch:Chapter)-[:PART_OF]->(book:CurriculumBook)
+    MATCH (book:CurriculumBook)<-[:PART_OF]-(ch:Chapter)<-[:IN_CHAPTER]-(chunk:Chunk)
+    WHERE book.bookId IN $bookIds
+      AND book.classLevel = $classLevel
+      AND toLower(book.subject) = toLower($subject)
+    WITH chunk, ch, book, vector.similarity.cosine(chunk.embedding, $embedding) AS score
+    WHERE score IS NOT NULL
     RETURN chunk { .* } AS chunk, ch { .* } AS chapter, book { .* } AS book, score
-    ORDER BY score DESC
+    ORDER BY score DESC, chunk.chunkId ASC
+    LIMIT $limit
   `,
     {
-      indexName: VECTOR_INDEX,
-      topK: annK,
+      bookIds: [...input.bookIds],
+      classLevel: input.classLevel,
+      subject: input.subject,
       embedding: input.embedding,
+      limit,
     },
   );
 
-  const bookIdSet = new Set(input.bookIds);
   const debug: RetrievalDebugMatch[] = [];
   const ranked: RetrievedChunk[] = [];
 
@@ -92,16 +95,13 @@ export async function hybridRetrieveCurriculumChunks(input: {
     const bookId = String(book.bookId ?? "");
     const classLevel = String(book.classLevel ?? "");
     const subject = String(book.subject ?? "").toLowerCase();
-    const survivedGraphFilter =
-      bookIdSet.has(bookId) &&
-      classLevel === input.classLevel &&
-      subject === input.subject.toLowerCase();
+    const survivedGraphFilter = true;
 
     const chapterTitle = String(chapter.title ?? chapter.chapterId ?? "");
     const chunkText = String(chunk.text ?? "");
     const vectorScore = typeof row.score === "number" ? row.score : 0;
     const boost = keywordBoost(input.queryText, chapterTitle, chunkText);
-    const finalScore = vectorScore + (survivedGraphFilter ? boost : 0);
+    const finalScore = vectorScore + boost;
 
     debug.push({
       chunkId: String(chunk.chunkId ?? ""),
@@ -112,10 +112,6 @@ export async function hybridRetrieveCurriculumChunks(input: {
       finalScore,
       survivedGraphFilter,
     });
-
-    if (!survivedGraphFilter) {
-      continue;
-    }
 
     ranked.push({
       chunkId: String(chunk.chunkId ?? ""),

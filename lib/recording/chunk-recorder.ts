@@ -10,14 +10,6 @@ export type ChunkReadyEvent = Readonly<{
 
 type ChunkReadyHandler = (event: ChunkReadyEvent) => void;
 
-const SEGMENT_GAP_MS = 250;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 /**
  * Records until the teacher taps stop. Rotates segments every CHUNK_DURATION_SEC
  * for long classes, and always flushes the final partial segment on stop.
@@ -70,7 +62,8 @@ export class ChunkRecorderSession {
       return;
     }
 
-    await sleep(SEGMENT_GAP_MS);
+    // Expo Audio exposes stop/prepare/record rather than gap-free segment rotation.
+    // Do not add an artificial pause here; the unavoidable native transition is minimal.
     await ensureRecorderPrepared(recorder);
     recorder.record();
   }

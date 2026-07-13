@@ -214,23 +214,16 @@ export function getWebSearchConfig(): WebSearchConfig | null {
 
 /**
  * Sarvam STT settings (`lib/sarvam.ts`).
- * Requires SARVAM_API_KEY and SARVAM_STT_MODEL in server `.env`.
+ * Requires SARVAM_API_KEY in server `.env`; Saaras v3 is the documented STT default.
  */
 export function getSarvamConfig(): SarvamConfig | null {
   const apiKey = readEnv(AI_ENV.SARVAM_API_KEY);
-  const sttModel = readEnv(AI_ENV.SARVAM_STT_MODEL);
+  const sttModel = readEnv(AI_ENV.SARVAM_STT_MODEL) ?? "saaras:v3";
   const llmModel = readEnv(AI_ENV.SARVAM_LLM_MODEL) ?? "sarvam-30b";
   const ttsModel = readEnv(AI_ENV.SARVAM_TTS_MODEL) ?? "bulbul:v3";
 
   if (!apiKey) {
     return null;
-  }
-
-  if (!sttModel) {
-    throw new AiConfigError(
-      "sarvam",
-      "Speech-to-text model is not configured. Add SARVAM_STT_MODEL to .env and restart the server.",
-    );
   }
 
   return { apiKey, sttModel, llmModel, ttsModel };

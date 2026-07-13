@@ -1,4 +1,4 @@
-import { AiConfigError, getSarvamConfig, requireSarvamConfig } from "@/lib/ai-config";
+import { AiConfigError, requireSarvamConfig } from "@/lib/ai-config";
 import { STT_AUTO_DETECT } from "@/lib/recording/constants";
 import type { OpenRouterErrorCode } from "@/types/recorder";
 import { SarvamAIClient, type SarvamAI } from "sarvamai";
@@ -274,17 +274,8 @@ export async function transcribeAudioBuffer(
   extension: string,
   options: SarvamTranscribeOptions = {},
 ): Promise<SarvamTranscribeResult> {
-  const config = getSarvamConfig();
+  const config = requireSarvamConfig();
   const autoDetect = shouldAutoDetectLanguage(options.languageCode);
-
-  if (!config) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return {
-      transcript:
-        "[Mock transcript] Good morning class, today we will learn about gravity.",
-      languageCode: autoDetect ? "en-IN" : (options.languageCode ?? "hi-IN"),
-    };
-  }
 
   const client = new SarvamAIClient({ apiSubscriptionKey: config.apiKey });
   const tempDir = path.join(os.tmpdir(), `sarvam-${randomUUID()}`);

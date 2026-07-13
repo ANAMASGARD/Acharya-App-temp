@@ -4,7 +4,7 @@ import {
   stopActiveSegment,
 } from "@/lib/recording/chunk-recorder";
 import { ChunkUploadQueue } from "@/lib/recording/chunk-upload-queue";
-import { clearPersistedQueue } from "@/lib/recording/queue-persistence";
+import { clearPersistedQueue, loadPersistedQueue } from "@/lib/recording/queue-persistence";
 import { apiAnalyzeTranscript } from "@/lib/recording/recorder-api";
 import { STT_AUTO_DETECT } from "@/lib/recording/constants";
 import type { ChunkReadyEvent } from "@/lib/recording/chunk-recorder";
@@ -112,13 +112,13 @@ export function useRecorder(): UseRecorderResult {
   }, [getToken]);
 
   useEffect(() => {
-    queueRef.current = new ChunkUploadQueue({
+    const queue = new ChunkUploadQueue({
       getToken: getAuthToken,
       onChunkProcessing: (index) => {
-        store.markChunkProcessing(index);
+        useRecorderStore.getState().markChunkProcessing(index);
       },
       onChunkSuccess: (response, localUri) => {
-        store.markChunkSuccess(
+        useRecorderStore.getState().markChunkSuccess(
           response.chunkIndex,
           response.transcript,
           response.chunkId,
@@ -127,14 +127,39 @@ export function useRecorder(): UseRecorderResult {
         finishDraining();
       },
       onChunkFailed: (index, message, permanent) => {
-        store.markChunkFailed(index, message, permanent);
+        useRecorderStore.getState().markChunkFailed(index, message, permanent);
         finishDraining();
       },
       onQueueIdle: () => {
         finishDraining();
       },
     });
-  }, [getAuthToken, store]);
+    queueRef.current = queue;
+
+    void (async () => {
+      const saved = await loadPersistedQueue();
+      if (!saved || saved.items.length === 0) {
+        return;
+      }
+
+      const recorderState = useRecorderStore.getState();
+      if (recorderState.status !== "idle") {
+        return;
+      }
+
+      useRecorderStore.setState({ sessionId: saved.sessionId, status: "draining" });
+      for (const item of saved.items) {
+        useRecorderStore.getState().addLocalChunk(item.index, item.uri);
+      }
+      await queue.restorePending(saved.sessionId);
+    })();
+
+    return () => {
+      if (queueRef.current === queue) {
+        queueRef.current = null;
+      }
+    };
+  }, [getAuthToken]);
 
   useEffect(() => {
     void (async () => {
@@ -254,13 +279,18 @@ export function useRecorder(): UseRecorderResult {
         durationSeconds: 0,
       };
 
-      sessionRef.current = new ChunkRecorderSession();
-
-      const sessionPromise = apiFetch<{ session: SessionNode }>("/api/sessions", {
+      const response = await apiFetch<{ session: SessionNode }>("/api/sessions", {
         method: "POST",
         token,
         body,
       });
+
+      if (!recordingActiveRef.current) {
+        return;
+      }
+
+      useRecorderStore.getState().startSession(response.session.sessionId);
+      sessionRef.current = new ChunkRecorderSession();
 
       const onChunkReady = ({ index, uri }: ChunkReadyEvent): void => {
         const sessionId = useRecorderStore.getState().sessionId;
@@ -279,29 +309,6 @@ export function useRecorder(): UseRecorderResult {
         () => recordingActiveRef.current,
       );
 
-      useRecorderStore.setState({
-        status: "recording",
-        sessionId: null,
-        startedAt: new Date().toISOString(),
-        elapsedSeconds: 0,
-        chunks: [],
-        mergedTranscript: "",
-        transcriptComplete: false,
-        allowPartialSend: false,
-        pendingUploadCount: 0,
-        errorMessage: null,
-        analysisError: null,
-        report: null,
-        classNotes: null,
-      });
-
-      const response = await sessionPromise;
-
-      if (!recordingActiveRef.current) {
-        return;
-      }
-
-      useRecorderStore.setState({ sessionId: response.session.sessionId });
       flushPendingChunks();
     } catch (error) {
       recordingActiveRef.current = false;
@@ -343,6 +350,7 @@ export function useRecorder(): UseRecorderResult {
           body: {
             sessionId: state.sessionId,
             durationSeconds: state.elapsedSeconds,
+            expectedChunkCount: state.chunks.length,
           },
         });
       } catch {
@@ -382,13 +390,7 @@ export function useRecorder(): UseRecorderResult {
 
     const payload = {
       sessionId: state.sessionId,
-      transcript: state.mergedTranscript,
-      topic: state.topic.trim(),
-      subject: state.subject.trim(),
-      classLevel: state.classLevel.trim(),
-      durationSeconds: state.elapsedSeconds,
-      isComplete: state.transcriptComplete,
-      chunkCount: state.chunks.length,
+      allowPartial: state.allowPartialSend,
     };
 
     let response: AnalyzeResponse;

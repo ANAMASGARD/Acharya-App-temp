@@ -81,7 +81,7 @@ export async function apiPostJson<T>(
 
 export async function apiAnalyzeTranscript(
   token: string,
-  body: unknown,
+  body: Readonly<{ sessionId: string; allowPartial?: boolean }>,
 ): Promise<AnalyzeResponse> {
   const response = await fetch(`${getApiBaseUrl()}/api/recorder/analyze`, {
     method: "POST",
