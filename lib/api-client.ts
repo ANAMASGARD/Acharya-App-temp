@@ -2,7 +2,11 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 export function getApiBaseUrl(): string {
-  const explicit = process.env.EXPO_PUBLIC_API_URL;
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
+  const fromExtra = (
+    Constants.expoConfig?.extra?.apiUrl as string | undefined
+  )?.trim();
+  const explicit = fromEnv || fromExtra;
 
   if (explicit) {
     return explicit.replace(/\/$/, "");

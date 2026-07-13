@@ -107,17 +107,15 @@ export async function createVoiceSession(
     const livekit = await createLiveKitVoiceRoom(voiceSessionId, clerkId, {
       conversationId: conversation.conversationId,
     });
-    const config = getVoiceConfig();
-    const sessionToken = config
-      ? mintVoiceSessionToken(
-          {
-            voiceSessionId,
-            conversationId: conversation.conversationId,
-            clerkId,
-          },
-          config.sessionSigningSecret,
-        )
-      : "";
+    const { sessionSigningSecret } = requireVoiceSecrets();
+    const sessionToken = mintVoiceSessionToken(
+      {
+        voiceSessionId,
+        conversationId: conversation.conversationId,
+        clerkId,
+      },
+      sessionSigningSecret,
+    );
 
     return {
       transport: "livekit",

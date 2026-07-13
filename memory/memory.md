@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|--------|
 | **Product** | Acharya — AI teaching assistant for teachers (recorder, transcripts, reports, calendar, chat, question paper verify/generate, teacher community) |
-| **Phase** | **Phase 18 — Agentic tool-calling chat + web search** ✅ Chat Acharya is a multi-step agent (curriculum, memory, history, live web search + page reading) |
-| **Previous phases** | Phase 17 weightage verify (`e7a8bff`), Phase 16 graph-native memory (`0ff7835`), Phase 15 hardening (`c7c8dde`) |
+| **Phase** | **Phase 19 — Standalone APK + LiveKit release pipeline** ✅ Two-command local release build + GitHub download badge |
+| **Previous phases** | Phase 18 agentic chat (`pending`), Phase 17 weightage verify (`e7a8bff`) |
 | **Branch** | `main` |
 | **Runnable in Expo Go?** | Yes — recorder, calendar, chat (text + **voice**), notes, Home + community |
 | **Default tab on launch** | **Recorder** (`/(tabs)/recorder`) |
@@ -23,7 +23,7 @@
 
 - **Voice pill** in Chat → live two-way coaching with **Sarvam AI** (Saaras STT → Sarvam-30B → Bulbul TTS)
 - **Local dev:** Expo Go + Python **`services/voice-local/`** over WebSocket (`./voice-backend.sh` + `./expo-local.sh`)
-- **Production / EAS APK:** **LiveKit Cloud** + **`services/voice-livekit/`** (deploy script: `scripts/deploy-voice-livekit.sh`) — not used in Expo Go
+- **Production / standalone APK:** **LiveKit Cloud** + **`services/voice-livekit/`** — APK always uses LiveKit transport (`!isExpoGo()`); build via `source scripts/android-env.sh && npm run android:standalone-apk`
 - **Single root `.env`** — no per-service env files; Python loads via `REPO_ROOT`
 - **Multilingual:** 22+ Indian languages; explicit switch (e.g. Marathi, Tamil, Hindi) locks reply language until user changes again
 - **Voice → chat history:** turn-level transcripts appear in chat UI during call; persisted to Neo4j on End via `/api/voice/transcript-batch`
@@ -64,6 +64,7 @@ SARVAM_API_KEY=...
 VOICE_SESSION_SIGNING_SECRET=...
 VOICE_AGENT_WEBHOOK_SECRET=...
 # EAS/APK + LiveKit only:
+# EXPO_PUBLIC_API_URL=https://your-public-api-url
 # LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_AGENT_NAME, ACHARYA_API_BASE_URL
 ```
 
@@ -79,7 +80,8 @@ Phase 10     Chat Acharya — caching, multilingual prompt, dedicated model, com
 Phase 11     Tab-wide async preload — Zustand bootstrap + stale-while-revalidate
 Phase 12     Glass pill tab bar — dark frosted dock, icon alignment, chat clearance
 Phase 13     Chat Acharya voice agent — Sarvam pipeline, Expo Go local gateway, LiveKit for deploy
-Phase 14     Recorder analysis — Sarvam-30B reflection + class notes; Saaras v3 auto STT; JSON/reasoning fixes
+Phase 18     Chat Acharya — agentic tool-calling + web search
+Phase 19     Standalone APK release — LiveKit transport fix, android build scripts, GitHub download badge
 ```
 
 ---
@@ -90,10 +92,10 @@ Phase 14     Recorder analysis — Sarvam-30B reflection + class notes; Saaras v
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  EXPO GO (local)                    EAS APK / production (deploy)        │
+│  EXPO GO (local)                    STANDALONE APK (release build)         │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  App (React Native)                 App (dev build / store build)        │
-│    → POST /api/voice/session          → POST /api/voice/session          │
+│  App (React Native)                 App (bundled JS + native WebRTC)       │
+│    → POST /api/voice/session          → POST EXPO_PUBLIC_API_URL/session │
 │    → WSS ws://<LAN>:8080/voice        → LiveKit room + token             │
 │                                       → services/voice-livekit/ agent    │
 │  services/voice-local/ (Python)                                          │
@@ -103,9 +105,9 @@ Phase 14     Recorder analysis — Sarvam-30B reflection + class notes; Saaras v
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Layer | Expo Go | EAS / deployed |
+| Layer | Expo Go | Standalone APK |
 |-------|---------|----------------|
-| **Transport** | WebSocket (`lib/voice/transports/websocket-transport.ts`) | LiveKit (`lib/voice/transports/livekit-transport.ts`) |
+| **Transport** | WebSocket (`lib/voice/transports/websocket-transport.ts`) | LiveKit (`lib/voice/transports/livekit-transport.ts`) — always when `!isExpoGo()` |
 | **Backend** | `services/voice-local/` uvicorn `:8080` | `services/voice-livekit/` on Fly/LiveKit |
 | **Session mint** | `app/api/voice/session+api.ts` + `lib/voice/session-token.ts` | same API; returns LiveKit URL/token |
 | **Prompt source** | `lib/prompts/voice-agent.ts` → `npm run sync:voice-prompt` | synced copies in both Python services |
@@ -180,9 +182,32 @@ store/chat-store.ts                     — messages + voice transcript append +
 
 ## 5. Current State
 
-> **Status:** Phase 18 — Chat Acharya is an **agentic tool-calling chat** (Vercel AI SDK `streamText`, up to 5 steps) that can search the NCERT curriculum, recall teacher memory + history, and use **live web search + page reading** to fetch current/official info (latest CBSE/ICSE syllabus, circulars). Runs server-side; the RN client + NDJSON contract are unchanged.
+> **Status:** Phase 19 — **Standalone APK release pipeline** for judge submission. LiveKit voice works in bundled APK (not Expo Go). Two-command local build + GitHub Releases download badge in README.
 
-### Phase 18 — what shipped (agentic chat + web search)
+### Phase 19 — what shipped (standalone APK + LiveKit + GitHub release)
+
+| Area | Implementation |
+|------|----------------|
+| LiveKit transport fix | `resolveVoiceTransportKind()` returns `livekit` when `!isExpoGo()` — no client-side LiveKit secret check |
+| Session token | LiveKit path uses `requireVoiceSecrets()` for `sessionToken` minting (server-side) |
+| Android identity | `app.json` → `android.package` + `ios.bundleIdentifier` = `com.acharya.app` |
+| Build scripts | `scripts/android-env.sh` (source), `scripts/android-standalone-apk.sh`, `scripts/configure-android-release-signing.sh` |
+| npm script | `npm run android:standalone-apk` → prebuild + release APK → `dist/acharya-<version>.apk` |
+| GitHub release | `scripts/publish-github-release.sh` → `gh release create` with APK asset |
+| README | Download badge → `https://github.com/ANAMASGARD/Acharya-App/releases/latest` |
+| Env | `EXPO_PUBLIC_API_URL` required at APK build time (`.env.example` documented) |
+| EAS | `eas.json` `standalone` profile added (APK) |
+
+**Build commands (from scratch):**
+
+```bash
+source scripts/android-env.sh
+npm run android:standalone-apk
+```
+
+**Prerequisites for voice in APK:** deployed API with LiveKit secrets, `bash scripts/deploy-voice-livekit.sh`, `EXPO_PUBLIC_API_URL` in `.env`.
+
+### Prior state (Phase 18 — agentic chat, still active)
 
 | Area | Implementation |
 |------|----------------|
@@ -240,6 +265,14 @@ hooks/use-recorder.ts         — clear classNotes on new recording
 ---
 
 ## 6. Commit Log (oldest → newest)
+
+### *(pending commit)* — feat: standalone APK release pipeline + LiveKit transport fix (Phase 19)
+
+- `lib/voice/transport.ts`: APK always uses LiveKit (`!isExpoGo()`); no client-side secret gate
+- `lib/voice/session-token.ts`: LiveKit path mints `sessionToken` via `requireVoiceSecrets()`
+- `app.json`: `com.acharya.app` package/bundleIdentifier; `eas.json` standalone APK profile
+- `scripts/android-env.sh`, `android-standalone-apk.sh`, `configure-android-release-signing.sh`, `publish-github-release.sh`
+- `npm run android:standalone-apk`; README Download badge + build docs; `docs/VOICE.md` updated; `assets/badges/get-it-on-github.png`
 
 ### *(pending commit)* — feat: agentic tool-calling chat with live web search (Phase 18)
 
@@ -303,11 +336,10 @@ hooks/use-recorder.ts         — clear classNotes on new recording
 
 ## 7. Next Work (recommended order)
 
-1. **Commit Phase 13 voice** — single focused PR after final manual pass on Android Expo Go
-2. **EAS dev build** — test LiveKit transport on device (not Expo Go)
-3. **Deploy voice-livekit** — Fly/LiveKit + public `ACHARYA_API_BASE_URL` for transcript webhook
-4. **Manual regression** — text chat, recorder, calendar unchanged after voice work
-5. **Optional** — voice session bar “speaking” waveform; barge-in while agent talks
+1. **Deploy API + LiveKit agent** — public `EXPO_PUBLIC_API_URL`, `bash scripts/deploy-voice-livekit.sh`
+2. **Build + publish APK** — `source scripts/android-env.sh && npm run android:standalone-apk` → `publish-github-release.sh`
+3. **Manual voice test on APK** — Chat → Voice on physical device (not Expo Go)
+4. **Judge submission** — README download link + deployed API URL in submission form
 
 ---
 
@@ -341,7 +373,8 @@ When you finish a meaningful commit:
 ```bash
 npm run lint && npx tsc --noEmit
 npm run sync:voice-prompt    # after editing lib/prompts/voice-agent.ts
-./voice-backend.sh           # Terminal 1 — voice AI
+source scripts/android-env.sh && npm run android:standalone-apk  # release APK
+./voice-backend.sh           # Terminal 1 — voice AI (Expo Go)
 ./expo-local.sh              # Terminal 2 — Expo Go
 npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
 ```
@@ -357,4 +390,4 @@ npm run verify:neo4j && npm run neo4j:test && npm run neo4j:test-api
 
 ---
 
-*Last updated: 2026-06-13 — Phase 18 agentic tool-calling chat: AI SDK streamText agent with curriculum/memory/history + live web search (Tavily/Brave/Serper) & page reading; server-side, NDJSON contract unchanged. lint/tsc pass. Next: Phase 5 Reality Check + live curriculum.*
+*Last updated: 2026-07-13 — Phase 19 standalone APK release pipeline: LiveKit transport fix, android build scripts, GitHub download badge. Next: deploy API + publish APK for judges.*

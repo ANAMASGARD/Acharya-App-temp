@@ -28,6 +28,7 @@ export async function GET(): Promise<Response> {
     return Response.json({
       status: "ok",
       database: "neo4j-aura",
+      transport: "https-query-api-v2",
       connected: true,
       nodeCount: stats ? toNumber(stats.nodeCount) : 0,
       relCount: stats ? toNumber(stats.relCount) : 0,

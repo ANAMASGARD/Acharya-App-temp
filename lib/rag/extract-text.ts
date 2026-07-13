@@ -1,6 +1,7 @@
+import "@/lib/server-polyfills";
+
 import { getOpenRouterVisionConfig } from "@/lib/ai-config";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
 
 const IMAGE_SEED_MIN_CHARS = 40;
 const IMAGE_SEED_MAX_TOKENS = 120;
@@ -15,6 +16,7 @@ export type ExtractedDocument = Readonly<{
 }>;
 
 export async function extractPdfText(buffer: Buffer): Promise<string> {
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
