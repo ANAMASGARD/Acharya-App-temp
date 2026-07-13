@@ -1,6 +1,6 @@
 import { runInWriteTransaction, runWriteQuery } from "@/lib/neo4j";
+import type { ManagedTransaction } from "@/lib/neo4j";
 import { serializeNeo4jValue } from "@/lib/neo4j-serialize";
-import type { ManagedTransaction } from "neo4j-driver";
 import type { VoteResponse, VoteValue } from "@/types/community";
 
 type VoteRow = Readonly<{

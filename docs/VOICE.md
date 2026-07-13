@@ -5,7 +5,7 @@ One `.env` at the repo root. Two terminals for local testing (backend + Expo).
 | How you run the app | What handles voice |
 |---------------------|-------------------|
 | **Expo Go** on Android (laptop) | `services/voice-local/` (WebSocket) |
-| **EAS APK / dev build** | LiveKit Cloud + `services/voice-livekit/` |
+| **Standalone APK** (release build) | LiveKit Cloud + `services/voice-livekit/` |
 
 ---
 
@@ -36,15 +36,18 @@ openssl rand -hex 32
 openssl rand -hex 32
 ```
 
-For **EAS APK + LiveKit**, also add:
+For **standalone APK + LiveKit**, also add:
 
 ```env
+EXPO_PUBLIC_API_URL=https://your-public-api-url
 LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
 LIVEKIT_AGENT_NAME=acharya-voice-agent
 ACHARYA_API_BASE_URL=https://your-public-api-url
 ```
+
+`EXPO_PUBLIC_API_URL` is baked into the APK at build time so the app can reach `/api/voice/session` without Metro. LiveKit secrets stay **server-only** — the APK always uses LiveKit transport when not running in Expo Go.
 
 You do **not** need a separate `.env` inside `services/`.
 
@@ -95,15 +98,15 @@ sudo firewall-cmd --runtime-to-permanent
 
 ---
 
-## EAS APK + LiveKit Cloud
+## Standalone APK + LiveKit Cloud
 
-Expo Go cannot use LiveKit (native WebRTC required). Use a **development build**.
+Expo Go cannot use LiveKit (native WebRTC required). Any **bundled APK** uses LiveKit automatically.
 
 ### 1. LiveKit Cloud (free Build tier)
 
 1. Sign up at [cloud.livekit.io](https://cloud.livekit.io) (no credit card on Build plan)
 2. Create a project → copy `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
-3. Add them to root `.env`
+3. Add them to root `.env` on your **deployed API host** (and local `.env` for agent deploy)
 
 Limits: ~5,000 WebRTC min/mo, ~1,000 agent session min/mo. Sarvam is billed separately via your API key.
 
@@ -121,25 +124,44 @@ bash scripts/deploy-voice-livekit.sh
 
 Secrets are read from **root `.env`** only.
 
-### 3. Build Android APK
+### 3. Build Android release APK (local)
+
+Set `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in `.env`, then:
 
 ```bash
-eas build --profile development --platform android
-npx expo start --dev-client
+source scripts/android-env.sh
+npm run android:standalone-apk
 ```
 
-Install the APK, open the **dev client** (not Expo Go), scan QR, test Voice in Chat.
+Output: `dist/acharya-<version>.apk` — install on device (not Expo Go). Chat → Voice uses LiveKit.
+
+### 4. Publish APK for judges
+
+```bash
+bash scripts/publish-github-release.sh v1.0.2 dist/acharya-1.0.2.apk
+```
+
+README links to `https://github.com/ANAMASGARD/Acharya-App/releases/latest`.
+
+### Optional: EAS cloud build
+
+```bash
+eas build --profile standalone --platform android
+```
 
 ---
 
 ## Folder layout
 
 ```txt
-voice-backend.sh            ← Terminal 1 (voice AI)
-expo-local.sh               ← Terminal 2 (Expo Go)
-.env                        ← all secrets (one file)
-services/voice-local/       ← WebSocket server (Expo Go)
-services/voice-livekit/     ← LiveKit agent (EAS APK)
-lib/voice/                  ← app voice client code
-docs/VOICE.md               ← this file
+voice-backend.sh                      ← Terminal 1 (voice AI, Expo Go)
+expo-local.sh                           ← Terminal 2 (Expo Go)
+scripts/android-env.sh                  ← source before standalone APK build
+scripts/android-standalone-apk.sh       ← release APK pipeline
+scripts/publish-github-release.sh       ← upload APK to GitHub Releases
+.env                                    ← all secrets (one file)
+services/voice-local/                   ← WebSocket server (Expo Go)
+services/voice-livekit/                 ← LiveKit agent (standalone APK)
+lib/voice/                              ← app voice client code
+docs/VOICE.md                           ← this file
 ```

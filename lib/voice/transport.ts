@@ -1,4 +1,4 @@
-import { isExpoGo, isLiveKitConfigured } from "@/lib/voice/config";
+import { isExpoGo } from "@/lib/voice/config";
 import type { VoiceAgentPhase, VoiceSessionResponse, VoiceTransportKind } from "@/types/voice";
 import type { useAudioRecorder } from "expo-audio";
 
@@ -24,7 +24,7 @@ type CreateVoiceTransportOptions = Readonly<{
 }>;
 
 export function resolveVoiceTransportKind(): VoiceTransportKind {
-  if (isExpoGo() || !isLiveKitConfigured()) {
+  if (isExpoGo()) {
     return "websocket";
   }
 

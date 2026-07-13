@@ -11,11 +11,12 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { Platform } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 SplashScreen.preventAutoHideAsync();
 
-if (!isExpoGo()) {
+if (!isExpoGo() && Platform.OS !== "web") {
   // Native WebRTC globals — required for EAS / dev builds only (not Expo Go).
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { registerGlobals } = require("@livekit/react-native") as typeof import("@livekit/react-native");
